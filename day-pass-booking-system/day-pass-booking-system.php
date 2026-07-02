@@ -389,13 +389,20 @@ function dpbs_register_settings() {
 
 add_action( 'admin_enqueue_scripts', 'dpbs_enqueue_admin_assets' );
 function dpbs_enqueue_admin_assets( $hook ) {
-    if ( 'day-pass-bookings_page_dpbs-settings' !== $hook ) return;
-    
+    /* CHANGED: Also load admin assets on the top-level Bookings list page
+       (previously only loaded on the Settings & Calendar submenu, so the
+       bookings table had zero JS - no export, no delete). */
+    $dpbs_admin_hooks = array( 'day-pass-bookings_page_dpbs-settings', 'toplevel_page_dpbs-bookings' );
+    if ( ! in_array( $hook, $dpbs_admin_hooks, true ) ) return;
+
     wp_enqueue_style( 'dpbs-admin-css', DPBS_PLUGIN_URL . 'assets/css/admin.css', array(), DPBS_VERSION );
     wp_enqueue_script( 'dpbs-admin-js', DPBS_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), DPBS_VERSION, true );
     wp_localize_script( 'dpbs-admin-js', 'dpbs_admin_obj', array(
         'ajax_url' => admin_url( 'admin-ajax.php' ),
-        'nonce'    => wp_create_nonce( 'dpbs_admin_nonce' )
+        'nonce'    => wp_create_nonce( 'dpbs_admin_nonce' ),
+        'confirm_delete_one'  => 'Delete this booking? This cannot be undone.',
+        'confirm_delete_bulk' => 'Delete the selected bookings? This cannot be undone.',
+        'no_selection'        => 'Please select at least one booking to delete.'
     ));
 }
 
@@ -407,23 +414,90 @@ function dpbs_bookings_page() {
     global $wpdb;
     $table = $wpdb->prefix . 'dpbs_bookings';
     $bookings = $wpdb->get_results("SELECT * FROM $table ORDER BY created_at DESC");
-    echo '<div class="wrap"><h2>Day Pass Bookings</h2><table class="widefat fixed striped"><thead><tr><th>Customer</th><th>Email</th><th>Phone</th><th>Service</th><th>Location</th><th>Date</th><th>Seats</th><th>Amount</th><th>Order ID</th><th>Payment ID</th><th>Status</th></tr></thead><tbody>';
-    foreach ( $bookings as $b ) {
-        echo '<tr>';
-        echo '<td>' . esc_html($b->customer_name) . '</td>';
-        echo '<td>' . esc_html($b->customer_email) . '</td>';
-        echo '<td>' . esc_html($b->customer_phone) . '</td>';
-        echo '<td>' . get_the_title($b->service_id) . '</td>';
-        echo '<td>' . get_the_title($b->location_id) . '</td>';
-        echo '<td>' . esc_html($b->booking_date) . '</td>';
-        echo '<td>' . esc_html($b->seats) . '</td>';
-        echo '<td>₹' . esc_html($b->total_amount) . '</td>';
-        echo '<td>' . esc_html($b->razorpay_order_id) . '</td>';
-        echo '<td>' . esc_html($b->razorpay_payment_id) . '</td>';
-        echo '<td>' . esc_html(ucfirst($b->status)) . '</td>';
-        echo '</tr>';
+    $export_url = wp_nonce_url( admin_url( 'admin-ajax.php?action=dpbs_export_csv' ), 'dpbs_admin_nonce', 'nonce' );
+    ?>
+    <div class="wrap cwf-admin-wrap">
+        <div class="cwf-admin-header">
+            <h1>Day Pass Bookings</h1>
+            <span class="cwf-admin-header-sub"><?php echo count( $bookings ); ?> total</span>
+        </div>
+
+        <div class="cwf-card">
+            <div class="cwf-bookings-toolbar">
+                <div class="cwf-bookings-bulk">
+                    <select id="dpbs_bulk_action">
+                        <option value="">Bulk actions</option>
+                        <option value="delete">Delete</option>
+                    </select>
+                    <button type="button" class="button" id="dpbs_bulk_apply">Apply</button>
+                </div>
+                <a href="<?php echo esc_url( $export_url ); ?>" class="button button-primary" id="dpbs_export_csv_btn">
+                    <span class="dashicons dashicons-download" style="vertical-align:text-bottom;"></span>
+                    Export CSV
+                </a>
+            </div>
+
+            <div id="dpbs_bookings_table_wrap">
+                <?php dpbs_render_bookings_table( $bookings ); ?>
+            </div>
+        </div>
+    </div>
+    <?php
+}
+
+/**
+ * Renders the bookings table (used for the initial page load and for the
+ * AJAX-refreshed markup after a delete).
+ */
+function dpbs_render_bookings_table( $bookings ) {
+    if ( empty( $bookings ) ) {
+        echo '<p class="cwf-bookings-empty">No bookings yet.</p>';
+        return;
     }
-    echo '</tbody></table></div>';
+    ?>
+    <table class="widefat fixed striped">
+        <thead>
+            <tr>
+                <td class="check-column"><input type="checkbox" id="dpbs_select_all" /></td>
+                <th>Customer</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Service</th>
+                <th>Location</th>
+                <th>Date</th>
+                <th>Seats</th>
+                <th>Amount</th>
+                <th>Order ID</th>
+                <th>Payment ID</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ( $bookings as $b ) : ?>
+                <tr data-id="<?php echo esc_attr( $b->id ); ?>">
+                    <th class="check-column"><input type="checkbox" class="dpbs_row_checkbox" value="<?php echo esc_attr( $b->id ); ?>" /></th>
+                    <td><?php echo esc_html( $b->customer_name ); ?></td>
+                    <td><?php echo esc_html( $b->customer_email ); ?></td>
+                    <td><?php echo esc_html( $b->customer_phone ); ?></td>
+                    <td><?php echo esc_html( get_the_title( $b->service_id ) ); ?></td>
+                    <td><?php echo esc_html( get_the_title( $b->location_id ) ); ?></td>
+                    <td><?php echo esc_html( $b->booking_date ); ?></td>
+                    <td><?php echo esc_html( $b->seats ); ?></td>
+                    <td>₹<?php echo esc_html( $b->total_amount ); ?></td>
+                    <td><?php echo esc_html( $b->razorpay_order_id ); ?></td>
+                    <td><?php echo esc_html( $b->razorpay_payment_id ); ?></td>
+                    <td><?php echo esc_html( ucfirst( $b->status ) ); ?></td>
+                    <td>
+                        <a href="#" class="dpbs-row-delete" data-id="<?php echo esc_attr( $b->id ); ?>" title="Delete booking">
+                            <span class="dashicons dashicons-trash"></span>
+                        </a>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php
 }
 
 /* ==========================================================================
@@ -835,6 +909,107 @@ function dpbs_delete_price_rule() {
         endforeach;
     }
     wp_die();
+}
+
+/**
+ * Delete one or more bookings (admin only). Accepts either a single `id`
+ * or a JSON-encoded array of ids in `ids` for bulk delete. Returns the
+ * refreshed table HTML so admin.js can swap it straight in.
+ */
+add_action( 'wp_ajax_dpbs_delete_booking', 'dpbs_delete_booking' );
+function dpbs_delete_booking() {
+    check_ajax_referer( 'dpbs_admin_nonce', 'nonce' );
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_send_json_error( array( 'message' => 'Permission denied.' ) );
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'dpbs_bookings';
+
+    $ids = array();
+    if ( isset( $_POST['ids'] ) ) {
+        $raw_ids = json_decode( wp_unslash( $_POST['ids'] ), true );
+        if ( is_array( $raw_ids ) ) {
+            $ids = array_filter( array_map( 'intval', $raw_ids ) );
+        }
+    } elseif ( isset( $_POST['id'] ) ) {
+        $ids = array( intval( $_POST['id'] ) );
+    }
+
+    if ( empty( $ids ) ) {
+        wp_send_json_error( array( 'message' => 'No booking(s) specified.' ) );
+    }
+
+    $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+    $wpdb->query( $wpdb->prepare( "DELETE FROM $table WHERE id IN ($placeholders)", $ids ) );
+
+    $bookings = $wpdb->get_results( "SELECT * FROM $table ORDER BY created_at DESC" );
+
+    ob_start();
+    dpbs_render_bookings_table( $bookings );
+    $html = ob_get_clean();
+
+    wp_send_json_success( array(
+        'html'  => $html,
+        'count' => count( $bookings ),
+    ) );
+}
+
+/**
+ * Streams all bookings as a downloadable CSV file. Triggered by a plain
+ * GET link (not a JS-driven AJAX call) so the browser handles it as a
+ * normal file download.
+ */
+add_action( 'wp_ajax_dpbs_export_csv', 'dpbs_export_csv' );
+function dpbs_export_csv() {
+    check_admin_referer( 'dpbs_admin_nonce', 'nonce' );
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( 'Permission denied.' );
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'dpbs_bookings';
+    $bookings = $wpdb->get_results( "SELECT * FROM $table ORDER BY created_at DESC" );
+
+    nocache_headers();
+    header( 'Content-Type: text/csv; charset=utf-8' );
+    header( 'Content-Disposition: attachment; filename=day-pass-bookings-' . gmdate( 'Y-m-d' ) . '.csv' );
+
+    $output = fopen( 'php://output', 'w' );
+
+    // UTF-8 BOM so Excel renders ₹ and non-ASCII names correctly.
+    fwrite( $output, "\xEF\xBB\xBF" );
+
+    fputcsv( $output, array(
+        'ID', 'Customer Name', 'Email', 'Phone', 'Company', 'Service', 'City', 'Location',
+        'Booking Date', 'Seats', 'Total Amount', 'Razorpay Order ID', 'Razorpay Payment ID',
+        'Status', 'Created At'
+    ) );
+
+    foreach ( $bookings as $b ) {
+        fputcsv( $output, array(
+            $b->id,
+            $b->customer_name,
+            $b->customer_email,
+            $b->customer_phone,
+            $b->customer_company,
+            get_the_title( $b->service_id ),
+            get_the_title( $b->city_id ),
+            get_the_title( $b->location_id ),
+            $b->booking_date,
+            $b->seats,
+            $b->total_amount,
+            $b->razorpay_order_id,
+            $b->razorpay_payment_id,
+            $b->status,
+            $b->created_at,
+        ) );
+    }
+
+    fclose( $output );
+    exit;
 }
 
 // Create Razorpay Order (NO DB INSERT HERE)

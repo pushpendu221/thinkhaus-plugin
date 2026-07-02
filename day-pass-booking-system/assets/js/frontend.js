@@ -1,26 +1,23 @@
 /**
  * DPBS Frontend - Multi-Instance Support
- * Each form instance has its own isolated state
+ * FIXED: Calendar close issue + Mobile calendar visibility
  */
 (function ($) {
   "use strict";
 
-  // Store instances by their ID
   var instances = {};
 
-  /**
-   * DPBS Instance Class - Isolated state per form
-   */
-  function DPBSInstance(container) {
+  function DPBSInstance(container, uniqueKey) {
     this.container = container;
-    this.id = container.data("instance-id");
+    this.id = uniqueKey || container.data("instance-id");
     this.calDate = new Date();
     this.selectedDate = "";
     this.bookingData = null;
     this.initialized = false;
     this.calendarOpen = false;
+    this._scrollParents = null;
+    this._touchHandled = false;
 
-    // Cache jQuery elements
     this.els = {
       form: container.find(".dpbs-booking-form"),
       service: container.find(".dpbs-service"),
@@ -51,6 +48,11 @@
       if (this.initialized) return;
       this.initialized = true;
 
+      // Move calendar to body to escape any transform/overflow containment
+      if (this.els.calPopover.length) {
+        this.els.calPopover.appendTo(document.body);
+      }
+
       this.bindEvents();
       this.loadPreselected();
     },
@@ -68,8 +70,7 @@
         });
       });
 
-      // Service change - re-filter City (and consequently Location) to only
-      // those that actually offer the selected service
+      // Service change
       this.els.service.on("change", function () {
         self.selectedDate = "";
         self.els.date.val("");
@@ -89,20 +90,37 @@
         self.loadCalendar();
       });
 
-      // Seats change (dropdown)
+      // Seats change
       this.els.seats.on("change", function () {
         self.updateSeatsInfo();
       });
 
-      // Date field click
-      this.els.date.on("click", function (e) {
+      // ============================================
+      // FIX: Simplified date field click/touch handling
+      // Only bind to the date INPUT, not the wrapper
+      // Use a flag to prevent double-fire from touch+click
+      // ============================================
+      this.els.date.on("click.dpbs-date touchend.dpbs-date", function (e) {
+        // If touchend just fired, skip the subsequent click
+        if (e.type === "click" && self._touchHandled) {
+          return;
+        }
+
+        // Mark that touchend fired
+        if (e.type === "touchend") {
+          self._touchHandled = true;
+          setTimeout(function () {
+            self._touchHandled = false;
+          }, 400);
+        }
+
         e.preventDefault();
         e.stopPropagation();
         self.toggleCalendar();
       });
 
-      // Calendar navigation (delegated)
-      this.container.on("click", ".dpbs-cal-nav", function (e) {
+      // Calendar navigation (popover is now in body, so delegate from it)
+      this.els.calPopover.on("click", ".dpbs-cal-nav", function (e) {
         e.preventDefault();
         e.stopPropagation();
         var dir = $(this).data("dir");
@@ -114,17 +132,36 @@
         self.loadCalendar();
       });
 
-      // Calendar day click (delegated)
-      this.container.on(
-        "click",
+      // ============================================
+      // FIX: Calendar day selection - handle both click and touchend
+      // with proper double-fire prevention
+      // ============================================
+      this.els.calPopover.on(
+        "click.dpbs-day touchend.dpbs-day",
         ".dpbs-cal-day:not(.is-empty):not(.is-disabled)",
         function (e) {
+          // Prevent double-fire
+          if (e.type === "click" && self._touchHandled) {
+            return;
+          }
+          if (e.type === "touchend") {
+            e.preventDefault();
+            self._touchHandled = true;
+            setTimeout(function () {
+              self._touchHandled = false;
+            }, 400);
+          }
+
           e.stopPropagation();
+
           self.els.calDays.find(".dpbs-cal-day").removeClass("is-selected");
           $(this).addClass("is-selected");
           self.selectedDate = $(this).data("date");
           self.els.date.val(self.selectedDate);
+
+          // Close calendar immediately
           self.closeCalendar();
+
           self.updateSeatsInfo();
           self.clearFormMessage();
         },
@@ -138,36 +175,30 @@
     },
 
     // =============================================
-    // PRESELECTED VALUES (FIXED - reads from data attributes)
+    // PRESELECTED VALUES
     // =============================================
 
     loadPreselected: function () {
       var self = this;
 
-      // Read from instance data attributes (not global dpbs_obj which gets overwritten)
       var preService = this.container.data("pre-service") || "";
       var preCity = this.container.data("pre-city") || "";
       var preLocation = this.container.data("pre-location") || "";
 
-      // Step 1: Set service FIRST (synchronous)
       if (preService) {
         this.els.service.val(preService);
       }
 
-      // Step 2: Set city and load locations (async)
       if (preCity) {
         this.els.city.val(preCity);
         this.loadLocations(function () {
-          // Step 3: Set location AFTER locations are loaded
           if (preLocation) {
             self.els.location.val(preLocation);
           }
-          // Step 4: Now both service and location should be set - update price & calendar
           self.updatePrice();
           self.loadCalendar();
         });
       } else if (preService && this.els.location.val()) {
-        // Edge case: service pre-selected and location already has value
         self.updatePrice();
         self.loadCalendar();
       }
@@ -178,18 +209,15 @@
     // =============================================
 
     isValidEmail: function (email) {
-      var regex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
-      return regex.test(email);
+      return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email);
     },
 
     isValidIndianPhone: function (phone) {
-      var cleaned = phone.replace(/[\s\-\+\(\)]/g, "");
-      var regex = /^[6-9]\d{9}$/;
-      return regex.test(cleaned);
+      return /^[6-9]\d{9}$/.test(phone.replace(/[\s\-\+\(\)]/g, ""));
     },
 
     // =============================================
-    // CITIES (filtered by selected Service)
+    // CITIES
     // =============================================
 
     loadCitiesForService: function (callback) {
@@ -198,7 +226,6 @@
       var currentCity = this.els.city.val();
 
       if (!serviceId) {
-        // No service selected yet - nothing to filter by, just clear location
         this.els.location.html('<option value="">Select Location</option>');
         if (typeof callback === "function") callback();
         return;
@@ -206,15 +233,9 @@
 
       $.post(
         dpbs_obj.ajax_url,
-        {
-          action: "dpbs_get_cities_for_service",
-          service_id: serviceId,
-        },
+        { action: "dpbs_get_cities_for_service", service_id: serviceId },
         function (response) {
           self.els.city.html(response);
-
-          // Keep the previously selected city if it's still a valid option
-          // for this service, otherwise reset city + location
           if (
             currentCity &&
             self.els.city.find('option[value="' + currentCity + '"]').length
@@ -224,7 +245,6 @@
             self.els.city.val("");
             self.els.location.html('<option value="">Select Location</option>');
           }
-
           if (typeof callback === "function") callback();
         },
       );
@@ -275,11 +295,7 @@
 
       $.post(
         dpbs_obj.ajax_url,
-        {
-          action: "dpbs_get_price",
-          service_id: sid,
-          location_id: lid,
-        },
+        { action: "dpbs_get_price", service_id: sid, location_id: lid },
         function (response) {
           var res = JSON.parse(response);
           if (res.success) {
@@ -291,13 +307,12 @@
     },
 
     // =============================================
-    // SEATS INFO (UPDATED for dropdown)
+    // SEATS INFO
     // =============================================
 
     updateSeatsInfo: function () {
       if (!this.selectedDate) {
         this.els.seatsInfo.text("");
-        // Re-enable all options when no date selected
         this.els.seats.find("option").prop("disabled", false);
         return;
       }
@@ -313,28 +328,17 @@
 
         if (avail > 0) {
           var currentVal = parseInt(this.els.seats.val());
-
-          // Disable options that exceed available seats
           this.els.seats.find("option").each(function () {
-            var optVal = parseInt($(this).val());
-            if (optVal > avail) {
-              $(this).prop("disabled", true);
-            } else {
-              $(this).prop("disabled", false);
-            }
+            $(this).prop("disabled", parseInt($(this).val()) > avail);
           });
-
-          // If current selection is now disabled, select the max available
           if (currentVal > avail) {
             this.els.seats.val(avail);
           }
         } else {
-          // No seats available - disable all
           this.els.seats.find("option").prop("disabled", true);
         }
       } else {
         this.els.seatsInfo.text("");
-        // Re-enable all options
         this.els.seats.find("option").prop("disabled", false);
       }
     },
@@ -348,10 +352,12 @@
       var lid = this.els.location.val();
 
       if (!sid || !lid) {
-        this.showFormMessage(
-          "Please select a Service and Location first.",
-          "error",
-        );
+        var errorMsg = "Please select a Service and Location first.";
+        this.showFormMessage(errorMsg, "error");
+        // Alert fallback for header placements where message might be hidden
+        if (this.isInHeader()) {
+          alert(errorMsg);
+        }
         return;
       }
 
@@ -362,43 +368,172 @@
       }
     },
 
+    isInHeader: function () {
+      var $el = this.container;
+      var selectors = [
+        "header",
+        ".elementor-location-header",
+        ".site-header",
+        "[data-elementor-location='header']",
+        ".mobile-header",
+        ".elementor-mobile",
+      ];
+      for (var i = 0; i < selectors.length; i++) {
+        if ($el.closest(selectors[i]).length) {
+          return true;
+        }
+      }
+      return false;
+    },
+
+    getScrollParents: function (el) {
+      var parents = [];
+      var node = el ? el.parentElement : null;
+      while (
+        node &&
+        node !== document.body &&
+        node !== document.documentElement
+      ) {
+        var style = window.getComputedStyle(node);
+        if (/(auto|scroll)/.test(style.overflowY + " " + style.overflow)) {
+          parents.push(node);
+        }
+        node = node.parentElement;
+      }
+      parents.push(window);
+      return parents;
+    },
+
     openCalendar: function () {
       var self = this;
 
       this.calendarOpen = true;
+
+      // Set z-index and clear any transforms that could cause issues
+      this.els.calPopover.css({
+        "z-index": "99999999",
+        transform: "none",
+        "-webkit-transform": "none",
+      });
+
+      // Add the class that makes it visible (CSS controls display)
       this.els.calPopover.addClass("is-open");
+
+      // Position after it's visible so we can measure it
       this.positionCalendar();
 
       if (this.els.calDays.children().length === 0) {
         this.loadCalendar();
       }
 
-      $(document).off("click.dpbs-" + this.id);
+      // Close on outside click
+      $(document).off(
+        "click.dpbs-close-" + this.id + " touchend.dpbs-close-" + this.id,
+      );
+      $(document).on(
+        "click.dpbs-close-" + this.id + " touchend.dpbs-close-" + this.id,
+        function (e) {
+          var $target = $(e.target);
+          // Skip if touch was just handled
+          if (e.type === "click" && self._touchHandled) return;
 
-      $(document).on("click.dpbs-" + this.id, function (e) {
-        if (
-          !$(e.target).closest(self.els.dateField).length &&
-          !$(e.target).closest(self.els.calPopover).length
-        ) {
-          self.closeCalendar();
+          var clickedOutside =
+            !$target.closest(self.els.dateField).length &&
+            !$target.closest(self.els.calPopover).length;
+
+          if (clickedOutside) {
+            self.closeCalendar();
+          }
+        },
+      );
+
+      // Reposition on scroll
+      this._scrollParents = this.getScrollParents(this.els.dateField[0]);
+      $(this._scrollParents).off("scroll.dpbs-" + this.id);
+      $(this._scrollParents).on("scroll.dpbs-" + this.id, function () {
+        if (self.calendarOpen) {
+          self.positionCalendar();
         }
       });
     },
 
     closeCalendar: function () {
       this.calendarOpen = false;
+
+      // Remove the visibility class - this is what hides it via CSS
       this.els.calPopover.removeClass("is-open");
-      $(document).off("click.dpbs-" + this.id);
+
+      // Clean up event listeners
+      $(document).off("click.dpbs-close-" + this.id);
+      $(document).off("touchend.dpbs-close-" + this.id);
+
+      if (this._scrollParents) {
+        $(this._scrollParents).off("scroll.dpbs-" + this.id);
+        this._scrollParents = null;
+      }
     },
 
     positionCalendar: function () {
       var dateInput = this.els.date;
       var popover = this.els.calPopover;
-      var offset = dateInput.offset();
 
+      if (!dateInput.length || !dateInput[0]) return;
+
+      var rect = dateInput[0].getBoundingClientRect();
+      var popoverWidth = popover.outerWidth() || 300;
+      var popoverHeight = popover.outerHeight() || 360;
+      var viewportWidth =
+        window.innerWidth || document.documentElement.clientWidth;
+      var viewportHeight =
+        window.innerHeight || document.documentElement.clientHeight;
+
+      // Adjust width for mobile
+      if (viewportWidth <= 600) {
+        popoverWidth = Math.min(viewportWidth - 40, 320);
+        popover.css("width", popoverWidth + "px");
+      }
+
+      // Calculate horizontal position
+      var left = rect.left;
+      if (left + popoverWidth > viewportWidth - 10) {
+        left = viewportWidth - popoverWidth - 10;
+      }
+      left = Math.max(10, left);
+
+      // Calculate vertical position with intelligent flip
+      var spaceBelow = viewportHeight - rect.bottom - 10;
+      var spaceAbove = rect.top - 10;
+      var top;
+
+      if (popoverHeight <= spaceBelow) {
+        // Fits below
+        top = rect.bottom + 5;
+      } else if (popoverHeight <= spaceAbove) {
+        // Fits above
+        top = rect.top - popoverHeight - 5;
+      } else {
+        // Doesn't fit either way - use larger space
+        top =
+          spaceBelow >= spaceAbove
+            ? rect.bottom + 5
+            : rect.top - popoverHeight - 5;
+      }
+
+      // Final clamp
+      top = Math.max(10, Math.min(top, viewportHeight - 50));
+
+      // ============================================
+      // FIX: Do NOT set display: block here!
+      // The CSS class .is-open controls visibility.
+      // Setting inline display overrides the class removal.
+      // ============================================
       popover.css({
-        top: offset.top + dateInput.outerHeight() + 5 + "px",
-        left: Math.min(offset.left, $(window).width() - 320) + "px",
+        top: top + "px",
+        left: left + "px",
+        position: "fixed",
+        "z-index": "99999999",
+        transform: "none",
+        "-webkit-transform": "none",
       });
     },
 
@@ -419,6 +554,10 @@
       var month = this.calDate.getMonth() + 1;
       var year = this.calDate.getFullYear();
 
+      this.els.calDays.html(
+        '<div style="text-align:center;padding:20px;color:#999;">Loading...</div>',
+      );
+
       $.post(
         dpbs_obj.ajax_url,
         {
@@ -433,11 +572,17 @@
           if (res.success) {
             self.renderCalendar(res.calendar);
             if (self.calendarOpen) {
-              self.positionCalendar();
+              setTimeout(function () {
+                self.positionCalendar();
+              }, 10);
             }
           }
         },
-      );
+      ).fail(function () {
+        self.els.calDays.html(
+          '<div style="text-align:center;padding:20px;color:#c0392b;">Failed to load calendar.</div>',
+        );
+      });
     },
 
     // =============================================
@@ -548,7 +693,6 @@
       var date = this.selectedDate;
       var company = this.els.company.val().trim();
 
-      // Validation
       if (!service) {
         this.showFormMessage("Please select a Service.", "error");
         this.els.service.focus();
@@ -565,10 +709,7 @@
         return;
       }
       if (!fullName || fullName.length < 2) {
-        this.showFormMessage(
-          "Please enter your Full Name (min 2 characters).",
-          "error",
-        );
+        this.showFormMessage("Please enter your Full Name.", "error");
         this.els.fullName.focus();
         return;
       }
@@ -578,31 +719,22 @@
         return;
       }
       if (!this.isValidIndianPhone(phone)) {
-        this.showFormMessage(
-          "Enter a valid 10-digit Indian phone number (e.g. 9876543210).",
-          "error",
-        );
+        this.showFormMessage("Enter a valid 10-digit phone number.", "error");
         this.els.phone.focus();
         return;
       }
       if (!email) {
-        this.showFormMessage("Please enter your Email Address.", "error");
+        this.showFormMessage("Please enter your Email.", "error");
         this.els.email.focus();
         return;
       }
       if (!this.isValidEmail(email)) {
-        this.showFormMessage(
-          "Please enter a valid Email Address (e.g. you@example.com).",
-          "error",
-        );
+        this.showFormMessage("Enter a valid Email.", "error");
         this.els.email.focus();
         return;
       }
       if (!date) {
-        this.showFormMessage(
-          "Please select a Date from the calendar.",
-          "error",
-        );
+        this.showFormMessage("Please select a Date.", "error");
         return;
       }
       if (seats < 1) {
@@ -611,33 +743,24 @@
         return;
       }
 
-      // Check seat availability
       var dayEl = this.els.calDays.find(
         '.dpbs-cal-day[data-date="' + date + '"]',
       );
       if (dayEl.length) {
         var availSeats = parseInt(dayEl.data("seats"));
         if (isNaN(availSeats) || availSeats < 1) {
-          this.showFormMessage(
-            "This date is fully booked. Please choose another date.",
-            "error",
-          );
+          this.showFormMessage("This date is fully booked.", "error");
           return;
         }
         if (seats > availSeats) {
           this.showFormMessage(
-            "Only " +
-              availSeats +
-              " seat" +
-              (availSeats !== 1 ? "s" : "") +
-              " available for this date.",
+            "Only " + availSeats + " seat(s) available.",
             "error",
           );
           return;
         }
       }
 
-      // Process
       this.showFormMessage("Processing...");
       this.els.submitBtn.prop("disabled", true);
 
@@ -681,7 +804,6 @@
 
     openRazorpay: function (orderId, amount, description) {
       var self = this;
-
       var options = {
         key: dpbs_obj.razorpay_key,
         amount: amount,
@@ -707,11 +829,8 @@
           email: self.bookingData.email,
           contact: self.bookingData.phone,
         },
-        theme: {
-          color: "#e8521e",
-        },
+        theme: { color: "#e8521e" },
       };
-
       var rzp = new Razorpay(options);
       rzp.open();
     },
@@ -740,21 +859,20 @@
         },
         function (response) {
           if (response.trim() === "verified") {
-            self.showFormMessage("Booking confirmed successfully!", "success");
+            self.showFormMessage("Booking confirmed!", "success");
             self.els.form[0].reset();
             self.selectedDate = "";
             self.els.date.val("");
             self.els.priceDisplay.text("0.00");
             self.els.seatsInfo.text("");
             self.els.calDays.html("");
-            // Re-enable all seat options after reset
             self.els.seats.find("option").prop("disabled", false);
             setTimeout(function () {
               self.loadCalendar();
             }, 1000);
           } else {
             self.showFormMessage(
-              "Payment verification failed. Please contact support with your payment ID: " +
+              "Payment verification failed. Contact support with ID: " +
                 paymentId,
               "error",
             );
@@ -762,28 +880,35 @@
           self.els.submitBtn.prop("disabled", false);
         },
       ).fail(function () {
-        self.showFormMessage(
-          "Verification request failed. Please contact support.",
-          "error",
-        );
+        self.showFormMessage("Verification failed. Contact support.", "error");
         self.els.submitBtn.prop("disabled", false);
       });
     },
   };
 
   // =============================================
-  // GLOBAL INITIALIZATION
+  // INITIALIZATION
   // =============================================
 
   window.initDPBSForm = function (container) {
     if (!container) return;
-
     var $container = $(container);
-    var instanceId = $container.data("instance-id");
 
-    if (instances[instanceId]) return;
+    if ($container.data("dpbsInitialized")) return;
+    $container.data("dpbsInitialized", true);
 
-    instances[instanceId] = new DPBSInstance($container);
+    var instanceId =
+      $container.data("instance-id") ||
+      "dpbs-auto-" + Date.now() + "-" + Math.floor(Math.random() * 1e6);
+    var key = instanceId;
+
+    // Handle cloned elements with same instance-id
+    if (instances[key] && instances[key].container[0] !== $container[0]) {
+      key =
+        instanceId + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6);
+    }
+
+    instances[key] = new DPBSInstance($container, key);
   };
 
   function initAllForms() {
@@ -797,7 +922,10 @@
   });
 
   $(window).on("load", function () {
-    setTimeout(initAllForms, 200);
+    // Multiple attempts for Elementor mobile menus
+    setTimeout(initAllForms, 100);
+    setTimeout(initAllForms, 500);
+    setTimeout(initAllForms, 1000);
   });
 
   // MutationObserver for dynamic content
@@ -818,24 +946,21 @@
             });
         }
       });
-      if (shouldInit) {
-        initAllForms();
-      }
+      if (shouldInit) initAllForms();
     });
 
     $(document).ready(function () {
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-      });
+      observer.observe(document.body, { childList: true, subtree: true });
     });
   }
 
-  // Reposition open calendars on scroll/resize
-  $(window).on("scroll resize", function () {
+  // Reposition on resize/orientation
+  $(window).on("resize orientationchange", function () {
     $.each(instances, function (id, instance) {
       if (instance.calendarOpen) {
-        instance.positionCalendar();
+        setTimeout(function () {
+          instance.positionCalendar();
+        }, 100);
       }
     });
   });

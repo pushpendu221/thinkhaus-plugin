@@ -282,4 +282,75 @@ jQuery(document).ready(function ($) {
       },
     );
   });
+
+  /* ===========================================================
+     Bookings list — select-all, single delete, bulk delete
+     =========================================================== */
+
+  let $tableWrap = $("#dpbs_bookings_table_wrap");
+
+  function dpbsUpdateHeaderCount(count) {
+    $(".cwf-admin-header-sub").text(count + " total");
+  }
+
+  function dpbsDeleteBookings(ids) {
+    $.post(
+      dpbs_admin_obj.ajax_url,
+      {
+        action: "dpbs_delete_booking",
+        nonce: dpbs_admin_obj.nonce,
+        ids: JSON.stringify(ids),
+      },
+      function (res) {
+        if (res.success) {
+          $tableWrap.html(res.data.html);
+          dpbsUpdateHeaderCount(res.data.count);
+        } else {
+          alert(
+            (res.data && res.data.message) || "Could not delete booking(s).",
+          );
+        }
+      },
+    ).fail(function () {
+      alert("Something went wrong while deleting. Please try again.");
+    });
+  }
+
+  // Select-all checkbox (delegated - table is re-rendered after each delete)
+  $(document).on("change", "#dpbs_select_all", function () {
+    $tableWrap
+      .find(".dpbs_row_checkbox")
+      .prop("checked", $(this).is(":checked"));
+  });
+
+  // Single row delete
+  $(document).on("click", ".dpbs-row-delete", function (e) {
+    e.preventDefault();
+    let id = $(this).data("id");
+    if (!confirm(dpbs_admin_obj.confirm_delete_one)) return;
+    dpbsDeleteBookings([id]);
+  });
+
+  // Bulk delete
+  $("#dpbs_bulk_apply").click(function () {
+    let action = $("#dpbs_bulk_action").val();
+    if (!action) return;
+
+    let ids = $tableWrap
+      .find(".dpbs_row_checkbox:checked")
+      .map(function () {
+        return $(this).val();
+      })
+      .get();
+
+    if (!ids.length) {
+      alert(dpbs_admin_obj.no_selection);
+      return;
+    }
+
+    if (action === "delete") {
+      if (!confirm(dpbs_admin_obj.confirm_delete_bulk)) return;
+      dpbsDeleteBookings(ids);
+    }
+  });
 });

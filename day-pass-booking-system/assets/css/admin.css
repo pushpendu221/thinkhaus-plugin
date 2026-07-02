@@ -27,7 +27,6 @@
   border-radius: 999px;
 }
 
-/* ---- Two-column layout: main settings + sidebar ---- */
 .cwf-admin-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
@@ -47,7 +46,6 @@
   gap: 20px;
 }
 
-/* ---- Card ---- */
 .cwf-card {
   background: #fff;
   border: 1px solid #dcdcde;
@@ -93,7 +91,6 @@
   border-top: 1px solid #eee;
 }
 
-/* ---- Form rows (replaces the default WP form-table look) ---- */
 .cwf-form-row {
   display: grid;
   grid-template-columns: 180px 1fr;
@@ -139,7 +136,6 @@
   font-size: 13px;
 }
 
-/* ---- Shortcode box ---- */
 .cwf-shortcode-box {
   display: block;
   background: #f6f7f7;
@@ -151,7 +147,6 @@
   word-break: break-all;
 }
 
-/* ---- Legend ---- */
 .cwf-legend {
   display: flex;
   flex-wrap: wrap;
@@ -204,7 +199,6 @@
   );
 }
 
-/* ---- Save indicator ---- */
 .cwf-autosave-indicator {
   font-size: 12.5px;
   font-weight: 500;
@@ -218,7 +212,6 @@
   color: #c0392b;
 }
 
-/* ---- Admin calendar ---- */
 #cwf-admin-calendar {
   max-width: 380px;
 }
@@ -344,7 +337,6 @@
   background: #ef4444;
 }
 
-/* ---- Dashboard listing ---- */
 .cwf-admin-wrap .cwf-dashboard-list {
   list-style: none;
   margin: 20px 0;
@@ -360,13 +352,11 @@
   padding: 16px 20px;
 }
 
-/* ---- Submissions table ---- */
 .cwf-admin-wrap table.widefat {
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid #dcdcde;
 }
-/* ---- Price List Styles ---- */
 .cwf-price-list {
   list-style: none;
   margin: 20px 0 0;
@@ -409,7 +399,6 @@
   font-style: italic;
   justify-content: center;
 }
-/* Calendar click-instruction notice */
 .cwf-cal-notice {
   display: flex;
   align-items: flex-start;
@@ -452,4 +441,42 @@
 .cwf-notice-reset {
   color: #16a34a;
   font-weight: 600;
+}
+
+/* ---- Bookings list toolbar ---- */
+.cwf-bookings-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.cwf-bookings-bulk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cwf-bookings-bulk select {
+  min-height: 32px;
+}
+.cwf-bookings-empty {
+  color: #757575;
+  font-style: italic;
+  padding: 20px 0;
+}
+
+.cwf-admin-wrap table.widefat th.check-column,
+.cwf-admin-wrap table.widefat td.check-column {
+  width: 32px;
+  text-align: center;
+}
+.cwf-admin-wrap table.widefat .dpbs-row-delete {
+  color: #b32d2e;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.cwf-admin-wrap table.widefat .dpbs-row-delete:hover {
+  color: #7a1f1f;
 }
