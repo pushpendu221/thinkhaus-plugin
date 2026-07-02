@@ -1,0 +1,45 @@
+/**
+ * service-filter.css  —  Service Filter Shortcode front-end styles
+ * Extends / mirrors the existing .spaces-container / .filters / .workspace-card
+ * rules already in the theme. Only adds what's specific to this shortcode.
+ */
+
+/* ── Loading spinner ─────────────────────────────────────────────────────── */
+.sfs-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 0;
+  font-size: 0.95rem;
+  color: #666;
+}
+
+.sfs-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(0, 0, 0, 0.12);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: sfs-spin 0.7s linear infinite;
+}
+
+@keyframes sfs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── No-results state ────────────────────────────────────────────────────── */
+.sfs-no-results {
+  padding: 32px 0;
+  font-size: 1rem;
+  color: #888;
+  text-align: center;
+}
+
+/* ── Disabled Location select visual cue ─────────────────────────────────── */
+.sfs-section select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,0 +1,283 @@
+/* =========================================================== ThinkHaus Frontend Styles =========================================================== */
+.hbs-modal-overlay {
+  position: relative;
+  background: transparent;
+  padding: 0;
+  display: block;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu,
+    Cantarell, "Helvetica Neue", sans-serif;
+  color: #1d2327;
+}
+.hbs-modal {
+  /* background: #ffffff;
+  max-width: 800px; */
+  margin: 0 auto;
+  /* padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e2e2; */
+}
+.hbs-form-heading {
+  margin: 0 0 10px 0;
+  font-size: 26px;
+  font-weight: 700;
+  color: #1d2327;
+}
+.hbs-price-tag {
+  font-size: 18px;
+  font-weight: 600;
+  color: #e8521e;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.hbs-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.hbs-field-full {
+  grid-column: 1 / -1;
+}
+.hbs-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hbs-field label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #50575e;
+}
+.hbs-field input[type="text"],
+.hbs-field input[type="tel"],
+.hbs-field input[type="email"],
+.hbs-field input[type="number"] {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  color: #1d2327;
+  background-color: #f9f9f9;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+.hbs-field input:focus {
+  border-color: #e8521e;
+  background-color: #fff;
+  box-shadow: 0 0 0 2px rgba(232, 82, 30, 0.1);
+}
+.hbs-select-wrap {
+  position: relative;
+}
+.hbs-select-wrap select {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 15px;
+  color: #1d2327;
+  background-color: #f9f9f9;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2350575e' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+.hbs-select-wrap select:focus {
+  border-color: #e8521e;
+  background-color: #fff;
+  box-shadow: 0 0 0 2px rgba(232, 82, 30, 0.1);
+}
+.hbs-date-field {
+  position: relative;
+}
+.hbs-date-field input[type="text"] {
+  cursor: pointer;
+  padding-right: 45px;
+}
+.hbs-date-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #757575;
+  cursor: pointer;
+  line-height: 1;
+}
+.hbs-calendar-popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  width: 320px;
+  background: #fff;
+  border: 1px solid #dcdcde;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+  z-index: 9999;
+}
+.hbs-calendar-popover.is-open {
+  display: block;
+}
+.hbs-cal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.hbs-cal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1d2327;
+}
+.hbs-cal-nav-btn {
+  background: #f6f7f7;
+  border: 1px solid #dcdcde;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #444;
+  transition: background 0.2s;
+}
+.hbs-cal-nav-btn:hover {
+  background: #e2e2e2;
+}
+.hbs-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.hbs-cal-dow {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9aa0a6;
+  padding-bottom: 10px;
+  text-transform: uppercase;
+}
+.hbs-cal-day {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #1d2327;
+  transition: all 0.15s ease;
+}
+.hbs-cal-day:hover:not(.is-empty):not(.is-disabled) {
+  background: #f6f7f7;
+}
+.hbs-cal-day.is-empty {
+  cursor: default;
+}
+.hbs-cal-day.is-disabled {
+  color: #c3c4c7;
+  cursor: not-allowed;
+  background: transparent;
+}
+.hbs-cal-day.is-limited {
+  color: #3b82f6;
+  font-weight: 600;
+}
+.hbs-cal-day.is-selected {
+  background: #1d2327;
+  color: #ffffff;
+}
+.hbs-cal-day.is-selected .hbs-dot {
+  background: #ffffff !important;
+}
+.hbs-dot {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.hbs-dot-full {
+  background: #ef4444;
+}
+.hbs-dot-limited {
+  background: #3b82f6;
+}
+.hbs-form-footer {
+  margin-top: 0px;
+  padding-top: 0px;
+  border-top: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+}
+.hbs-form-message {
+  font-size: 14px;
+  font-weight: 500;
+}
+.hbs-form-message.is-error {
+  color: #c0392b;
+}
+.hbs-form-message.is-success {
+  color: #1c7a3d;
+}
+.hbs-submit-btn {
+  background: #e8521e;
+  color: #ffffff;
+  border: none;
+  padding: 14px 32px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.hbs-submit-btn:hover {
+  background: #d04818;
+}
+.hbs-submit-btn:disabled {
+  background: #9aa0a6;
+  cursor: not-allowed;
+}
+.hbs-cal-loading {
+  text-align: center;
+  padding: 40px 0;
+  color: #757575;
+  font-size: 14px;
+}
+@media (max-width: 600px) {
+  .hbs-modal {
+    padding: 25px;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+  }
+  .hbs-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .hbs-calendar-popover {
+    width: calc(100vw - 50px);
+    left: -10px;
+  }
+}

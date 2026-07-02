@@ -1,0 +1,342 @@
+/* ===========================================================
+   Co-Working Forms / Schedule Forms — Front-end styles
+   =========================================================== */
+
+/* ---- Inline form wrapper (replaces modal — form renders directly on page) ---- */
+.cwf-inline-form-wrap {
+  /* background: #eceae3; */
+  border-radius: 20px;
+  /* padding: 40px 44px 32px; */
+  max-width: 760px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  .cwf-inline-form-wrap {
+    /* padding: 28px 20px 24px; */
+  }
+}
+
+.cwf-trigger-btn {
+  background: #e8521e;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
+}
+.cwf-trigger-btn:hover {
+  background: #cf4716;
+}
+.cwf-trigger-btn:active {
+  transform: scale(0.98);
+}
+
+/* ---- Modal overlay ---- */
+.cwf-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 20, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+}
+.cwf-modal-overlay.is-open {
+  display: flex;
+}
+
+.cwf-modal {
+  background: #eceae3;
+  border-radius: 20px;
+  max-width: 760px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  padding: 40px 44px 32px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+}
+
+.cwf-modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: rgba(0, 0, 0, 0.08);
+  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: #2b2b2b;
+}
+.cwf-modal-close:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.cwf-form-heading {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1f1f1f;
+  margin: 0 0 28px;
+  letter-spacing: -0.5px;
+}
+
+/* ---- Field grid (2 columns like the mockup) ---- */
+.cwf-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px 24px;
+}
+
+.cwf-field {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.cwf-field label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f1f1f;
+  margin-bottom: 8px;
+}
+
+.cwf-field input[type="text"],
+.cwf-field input[type="tel"],
+.cwf-field input[type="email"],
+.cwf-field textarea,
+.cwf-select-wrap select {
+  background: #fff;
+  border: 1px solid #d8d5cc;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 15px;
+  color: #1f1f1f;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.cwf-field input:focus,
+.cwf-field textarea:focus,
+.cwf-select-wrap select:focus {
+  outline: none;
+  border-color: #e8521e;
+  box-shadow: 0 0 0 3px rgba(232, 82, 30, 0.12);
+}
+
+.cwf-select-wrap {
+  position: relative;
+}
+.cwf-select-wrap select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 40px;
+}
+.cwf-select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid #1f1f1f;
+  transform: translateY(-40%);
+  pointer-events: none;
+}
+
+/* ---- Date field with calendar icon + popover ---- */
+.cwf-date-field {
+  position: relative;
+}
+.cwf-date-field input {
+  cursor: pointer;
+  background: #fff;
+  padding-left: 44px;
+}
+.cwf-date-icon {
+  position: absolute;
+  left: auto;
+  right: 12px;
+  top: 25%;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #e8521e;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.cwf-calendar-popover {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 10;
+  width: 320px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+  padding: 16px;
+}
+.cwf-calendar-popover.is-open {
+  display: block;
+}
+
+.cwf-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.cwf-cal-header .cwf-cal-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #1f1f1f;
+}
+.cwf-cal-nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #444;
+}
+.cwf-cal-nav-btn:hover {
+  background: #f1f1f1;
+}
+
+.cwf-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+}
+.cwf-cal-dow {
+  font-size: 11px;
+  font-weight: 700;
+  color: #999;
+  padding-bottom: 6px;
+  text-transform: uppercase;
+}
+.cwf-cal-dow.is-weekend {
+  color: #e8521e;
+}
+
+.cwf-cal-day {
+  position: relative;
+  font-size: 13px;
+  padding: 8px 0 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #2b2b2b;
+  background: none;
+  border: none;
+  width: 100%;
+}
+.cwf-cal-day:hover:not(.is-disabled):not(.is-empty) {
+  background: #f1efe9;
+}
+.cwf-cal-day.is-empty {
+  cursor: default;
+  pointer-events: none;
+}
+.cwf-cal-day.is-weekend {
+  color: #e8521e;
+}
+.cwf-cal-day.is-disabled {
+  color: #c9c9c9;
+  cursor: not-allowed;
+}
+.cwf-cal-day.is-selected {
+  background: #e8521e;
+  color: #fff;
+  font-weight: 700;
+}
+.cwf-cal-day .cwf-dot {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.cwf-cal-day .cwf-dot.cwf-dot-limited {
+  background: #3b82f6;
+}
+.cwf-cal-day .cwf-dot.cwf-dot-full {
+  background: #ef4444;
+}
+
+/* ---- Footer / submit ---- */
+.cwf-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 30px;
+}
+.cwf-form-message {
+  font-size: 14px;
+  flex: 1;
+}
+.cwf-form-message.is-error {
+  color: #c0392b;
+}
+.cwf-form-message.is-success {
+  color: #1c7a3d;
+}
+
+.cwf-submit-btn {
+  background: #e8521e;
+  color: #fff;
+  border: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cwf-submit-btn:hover {
+  background: #cf4716;
+}
+.cwf-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 600px) {
+  .cwf-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .cwf-modal {
+    padding: 28px 20px 24px;
+  }
+  .cwf-calendar-popover {
+    width: 100%;
+    left: 0;
+    right: 0;
+  }
+}

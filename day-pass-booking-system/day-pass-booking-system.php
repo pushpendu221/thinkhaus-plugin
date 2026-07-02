@@ -1,0 +1,971 @@
+<?php
+/**
+ * Plugin Name: Day Pass Booking System
+ * Description: Companion plugin for Service/City CPTs. Adds a day pass booking form with custom calendar, seat tracking, and Razorpay integration.
+ * Version: 1.7.0
+ * Author: Pushpendu
+ */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+define( 'DPBS_VERSION', '1.7.0' );
+define( 'DPBS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+define( 'DPBS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+
+/* ==========================================================================
+   1. CALENDAR & PRICE LOGIC
+   ========================================================================== */
+
+class DPBS_Calendar {
+    const STATUS_AVAILABLE = 'available';
+    const STATUS_LIMITED   = 'limited';
+    const STATUS_FULL      = 'full';
+
+    protected $form_slug;
+    public function __construct( $form_slug ) { $this->form_slug = $form_slug; }
+    protected function option_key() { return 'dpbs_calendar_' . $this->form_slug; }
+    public function get_all() {
+        $data = get_option( $this->option_key(), array() );
+        return is_array( $data ) ? $data : array();
+    }
+    public function set_status( $date, $status ) {
+        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) return false;
+        $all = $this->get_all();
+        if ( self::STATUS_AVAILABLE === $status ) unset( $all[ $date ] );
+        elseif ( in_array( $status, array( self::STATUS_LIMITED, self::STATUS_FULL ), true ) ) $all[ $date ] = $status;
+        else return false;
+        return update_option( $this->option_key(), $all, false );
+    }
+    public function get_status( $date ) {
+        $all = $this->get_all();
+        return isset( $all[ $date ] ) ? $all[ $date ] : self::STATUS_AVAILABLE;
+    }
+}
+
+function dpbs_calculate_price( $service_id, $location_id ) {
+    $loc_prices = get_option('dpbs_location_prices', array());
+    $svc_prices = get_option('dpbs_service_prices', array());
+    $global_price = get_option('dpbs_default_price', '0.00');
+
+    $loc_key = $service_id . '_' . $location_id;
+    if ( isset($loc_prices[$loc_key]) && $loc_prices[$loc_key] !== '' ) {
+        return floatval($loc_prices[$loc_key]);
+    } elseif ( isset($svc_prices[$service_id]) && $svc_prices[$service_id] !== '' ) {
+        return floatval($svc_prices[$service_id]);
+    } else {
+        return floatval($global_price);
+    }
+}
+/**
+ * Resolve a post ID from either a numeric ID or a slug/name
+ */
+function dpbs_resolve_post_id( $value, $post_type = 'city' ) {
+    if ( empty( $value ) ) return '';
+    
+    // If numeric, use as post ID directly
+    if ( is_numeric( $value ) ) {
+        return intval( $value );
+    }
+    
+    // Try to find by slug (post_name)
+    $posts = get_posts( array(
+        'post_type'      => $post_type,
+        'name'           => sanitize_title( $value ),
+        'numberposts'    => 1,
+        'post_status'    => 'publish',
+    ) );
+    
+    if ( ! empty( $posts ) ) {
+        return $posts[0]->ID;
+    }
+    
+    // Fallback: try by post title
+    $posts = get_posts( array(
+        'post_type'      => $post_type,
+        'title'          => sanitize_text_field( $value ),
+        'numberposts'    => 1,
+        'post_status'    => 'publish',
+    ) );
+    
+    if ( ! empty( $posts ) ) {
+        return $posts[0]->ID;
+    }
+    
+    return '';
+}
+
+/**
+ * Get the service IDs available at a given location (child 'city' post).
+ * Reads the '_csm_service_records' meta written by the Service Details
+ * Meta Box (CSM) plugin - a JSON blob keyed by service post ID.
+ */
+function dpbs_get_service_ids_for_location( $location_id ) {
+    $raw = get_post_meta( $location_id, '_csm_service_records', true );
+    $records = array();
+
+    if ( is_string( $raw ) ) {
+        $decoded = json_decode( $raw, true );
+        if ( is_array( $decoded ) ) $records = $decoded;
+    } elseif ( is_array( $raw ) ) {
+        $records = $raw;
+    } elseif ( is_object( $raw ) ) {
+        $records = json_decode( wp_json_encode( $raw ), true );
+    }
+
+    if ( empty( $records ) || ! is_array( $records ) ) return array();
+
+    return array_map( 'intval', array_keys( $records ) );
+}
+
+/**
+ * Whether a given location offers a given service.
+ */
+function dpbs_location_offers_service( $location_id, $service_id ) {
+    if ( ! $service_id ) return true; // no service filter requested
+    return in_array( intval( $service_id ), dpbs_get_service_ids_for_location( $location_id ), true );
+}
+
+/**
+ * Whether a given city (parent) has at least one child location offering the service.
+ */
+function dpbs_city_offers_service( $city_id, $service_id ) {
+    if ( ! $service_id ) return true;
+    $children = get_posts( array(
+        'post_type'      => 'city',
+        'post_parent'    => $city_id,
+        'numberposts'    => -1,
+        'post_status'    => 'publish',
+        'fields'         => 'ids',
+    ) );
+    foreach ( $children as $loc_id ) {
+        if ( dpbs_location_offers_service( $loc_id, $service_id ) ) return true;
+    }
+    return false;
+}
+
+/* ==========================================================================
+   2. DATABASE CREATION
+   ========================================================================== */
+
+register_activation_hook( __FILE__, 'dpbs_create_custom_tables' );
+function dpbs_create_custom_tables() {
+    global $wpdb;
+    require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $table_bookings = $wpdb->prefix . 'dpbs_bookings';
+    $sql = "CREATE TABLE $table_bookings (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        service_id mediumint(9) NOT NULL,
+        city_id mediumint(9) NOT NULL,
+        location_id mediumint(9) NOT NULL,
+        booking_date date NOT NULL,
+        seats int NOT NULL,
+        total_amount decimal(10,2) NOT NULL,
+        customer_name varchar(255) NOT NULL,
+        customer_email varchar(255) NOT NULL,
+        customer_phone varchar(50) NOT NULL,
+        customer_company varchar(255),
+        razorpay_order_id varchar(255),
+        razorpay_payment_id varchar(255),
+        status varchar(20) DEFAULT 'pending',
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+    dbDelta( $sql );
+}
+
+
+
+/* ==========================================================================
+   3. ADMIN MENU & SETTINGS PAGE
+   ========================================================================== */
+
+add_action( 'admin_menu', 'dpbs_admin_menu' );
+function dpbs_admin_menu() {
+    add_menu_page( 'Day Pass Bookings', 'Day Pass Bookings', 'manage_options', 'dpbs-bookings', 'dpbs_bookings_page', 'dashicons-calendar-alt', 26 );
+    add_submenu_page( 'dpbs-bookings', 'Settings & Calendar', 'Settings & Calendar', 'manage_options', 'dpbs-settings', 'dpbs_settings_page' );
+}
+
+function dpbs_settings_page() {
+    $services = get_posts( array( 'post_type' => 'service', 'numberposts' => -1 ) );
+    $cities = get_posts( array( 'post_type' => 'city', 'post_parent' => 0, 'numberposts' => -1 ) );
+    
+    $svc_prices = get_option('dpbs_service_prices', array());
+    $loc_prices = get_option('dpbs_location_prices', array());
+    ?>
+    <div class="cwf-admin-wrap">
+        <div class="cwf-admin-header">
+            <h1>Day Pass Booking</h1>
+            <span class="cwf-admin-header-sub">Settings & Calendar</span>
+        </div>
+        
+        <div class="cwf-admin-columns">
+            <div class="cwf-admin-main">
+                <form method="post" action="options.php">
+                    <div class="cwf-card">
+                        <div class="cwf-card-title">General</div>
+                        <?php settings_fields( 'dpbs_settings_group' ); ?>
+                        <div class="cwf-form-row">
+                            <label>Admin Email</label>
+                            <div class="cwf-form-row-control">
+                                <input type="email" name="dpbs_admin_email" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_admin_email', get_option('admin_email')) ); ?>" required />
+                                <p class="description">Email address where new booking notifications will be sent.</p>
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Razorpay Key ID</label>
+                            <div class="cwf-form-row-control">
+                                <input type="text" name="dpbs_razorpay_key" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_razorpay_key') ); ?>" required />
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Razorpay Secret</label>
+                            <div class="cwf-form-row-control">
+                                <input type="text" name="dpbs_razorpay_secret" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_razorpay_secret') ); ?>" required />
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Global Default Price (₹)</label>
+                            <div class="cwf-form-row-control">
+                                <input type="number" name="dpbs_default_price" step="0.01" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_default_price', '500.00') ); ?>" required />
+                                <p class="description">Fallback price if no service or location price is set.</p>
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Default Total Seats</label>
+                            <div class="cwf-form-row-control">
+                                <input type="number" name="dpbs_default_seats" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_default_seats', '10') ); ?>" required />
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Limited Seats Threshold</label>
+                            <div class="cwf-form-row-control">
+                                <input type="number" name="dpbs_limited_seats" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_limited_seats', '3') ); ?>" required />
+                                <p class="description">If available seats fall to/below this number, date shows a Blue Dot automatically.</p>
+                            </div>
+                        </div>
+                        <div class="cwf-card-footer">
+                            <?php submit_button('Save Settings', 'primary', 'submit', false); ?>
+                        </div>
+                    </div>
+                </form>
+                
+                <div class="cwf-card">
+                    <div class="cwf-card-title">Service Default Pricing</div>
+                    <p class="description" style="margin-bottom: 20px;">Select a service and set a default price for it. This overrides the global price.</p>
+                    <div class="cwf-form-row" style="border-bottom: none; padding-bottom: 0;">
+                        <label>Add Price Rule</label>
+                        <div class="cwf-form-row-control" style="display:flex; gap:10px; align-items:center;">
+                            <!-- CHANGED: Already had placeholder, kept consistent -->
+                            <select id="svc_price_service" style="flex:1;">
+                                <option value="">— Select Service —</option>
+                                <?php foreach($services as $s) echo "<option value='{$s->ID}'>{$s->post_title}</option>"; ?>
+                            </select>
+                            <input type="number" id="svc_price_amount" placeholder="₹ Price" style="width:120px;" />
+                            <button type="button" class="button" id="save_svc_price">Add / Update</button>
+                        </div>
+                    </div>
+                    <ul class="cwf-price-list" id="svc_price_list">
+                        <?php foreach($svc_prices as $sid => $price): 
+                            if(!get_post_status($sid)) continue; ?>
+                            <li>
+                                <span class="cwf-price-rule-name"><?php echo get_the_title($sid); ?></span>
+                                <span class="cwf-price-rule-value">₹<?php echo esc_html($price); ?></span>
+                                <a href="#" class="cwf-price-delete" data-type="svc" data-id="<?php echo esc_attr($sid); ?>">Delete</a>
+                            </li>
+                        <?php endforeach; ?>
+                        <?php if(empty($svc_prices)): ?><li class="cwf-price-empty">No service prices set yet.</li><?php endif; ?>
+                    </ul>
+                </div>
+
+                <div class="cwf-card">
+                    <div class="cwf-card-title">Specific Location Pricing</div>
+                    <p class="description" style="margin-bottom: 20px;">Set exact prices for a Service at a specific Location. This overrides the service price.</p>
+                    <div class="cwf-form-row" style="border-bottom: none; padding-bottom: 0;">
+                        <label>Add Price Rule</label>
+                        <div class="cwf-form-row-control" style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+                            <select id="loc_price_service" style="flex:1; min-width: 150px;">
+                                <option value="">— Select Service —</option>
+                                <?php foreach($services as $s) echo "<option value='{$s->ID}'>{$s->post_title}</option>"; ?>
+                            </select>
+                            <!-- CHANGED: Added "Select City" placeholder -->
+                            <select id="loc_price_city" style="flex:1; min-width: 120px;">
+                                <option value="">— Select City —</option>
+                                <?php foreach($cities as $c) echo "<option value='{$c->ID}'>{$c->post_title}</option>"; ?>
+                            </select>
+                            <select id="loc_price_location" style="flex:1; min-width: 150px;"><option value="">— Select Location —</option></select>
+                            <input type="number" id="loc_price_amount" placeholder="₹ Price" style="width:120px;" />
+                            <button type="button" class="button" id="save_loc_price">Add / Update</button>
+                        </div>
+                    </div>
+                    <ul class="cwf-price-list" id="loc_price_list">
+                        <?php foreach($loc_prices as $key => $price): 
+                            list($sid, $lid) = explode('_', $key);
+                            if(!get_post_status($sid) || !get_post_status($lid)) continue; ?>
+                            <li>
+                                <span class="cwf-price-rule-name"><?php echo get_the_title($sid); ?> @ <?php echo get_the_title($lid); ?></span>
+                                <span class="cwf-price-rule-value">₹<?php echo esc_html($price); ?></span>
+                                <a href="#" class="cwf-price-delete" data-type="loc" data-id="<?php echo esc_attr($key); ?>">Delete</a>
+                            </li>
+                        <?php endforeach; ?>
+                        <?php if(empty($loc_prices)): ?><li class="cwf-price-empty">No location prices set yet.</li><?php endif; ?>
+                    </ul>
+                </div>
+
+                <div class="cwf-card">
+                    <div class="cwf-card-title-row">
+                        <div class="cwf-card-title">Calendar Availability</div>
+                        <span class="cwf-autosave-indicator" id="cwf-save-indicator"></span>
+                    </div>
+                    
+                    <!-- CHANGED: Added click-instruction notice -->
+                    <div class="cwf-cal-notice">
+                        <span class="cwf-cal-notice-icon dashicons dashicons-info"></span>
+                        <ul>
+                            <li><strong>Single click</strong> on a date → Mark as <span class="cwf-notice-limited">Partially Booked</span> (Blue dot)</li>
+                            <li><strong>Double click</strong> on a date → Mark as <span class="cwf-notice-full">Blocked / Fully Booked</span> (Red dot)</li>
+                            <li><strong>Triple click (or more)</strong> on a date → <span class="cwf-notice-reset">Reset to Available</span> (Remove all status)</li>
+                        </ul>
+                    </div>
+
+                    <div class="cwf-form-row">
+                        <label>Service & Location</label>
+                        <div class="cwf-form-row-control" style="display:flex; gap:10px;">
+                            <!-- CHANGED: Added "Select Service" placeholder -->
+                            <select id="admin_service" style="flex:1;">
+                                <option value="">— Select Service —</option>
+                                <?php foreach($services as $s) echo "<option value='{$s->ID}'>{$s->post_title}</option>"; ?>
+                            </select>
+                            <!-- CHANGED: Added "Select City" placeholder -->
+                            <select id="admin_city" style="flex:1;">
+                                <option value="">— Select City —</option>
+                                <?php foreach($cities as $c) echo "<option value='{$c->ID}'>{$c->post_title}</option>"; ?>
+                            </select>
+                            <select id="admin_location" style="flex:1;"><option value="">— Select Location —</option></select>
+                        </div>
+                    </div>
+
+                    <div class="cwf-legend">
+                        <span class="cwf-legend-item"><span class="cwf-legend-dot cwf-dot-available"></span>Available</span>
+                        <span class="cwf-legend-item"><span class="cwf-legend-dot cwf-dot-limited"></span>Limited Seats</span>
+                        <span class="cwf-legend-item"><span class="cwf-legend-dot cwf-dot-full"></span>Blocked / Full</span>
+                    </div>
+                    
+                    <div id="cwf-admin-calendar">
+                        <div class="cwf-cal-loading">Select a location to load calendar...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="cwf-admin-side">
+                <div class="cwf-card cwf-card-compact">
+                    <div class="cwf-card-title">Shortcode</div>
+                    <code class="cwf-shortcode-box">[book_day_pass]</code>
+                </div>
+                <div class="cwf-card cwf-card-compact">
+                    <div class="cwf-card-title">Quick Links</div>
+                    <p><a href="<?php echo admin_url('admin.php?page=dpbs-bookings'); ?>">View Bookings</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php
+}
+
+add_action( 'admin_init', 'dpbs_register_settings' );
+function dpbs_register_settings() {
+    register_setting( 'dpbs_settings_group', 'dpbs_razorpay_key' );
+    register_setting( 'dpbs_settings_group', 'dpbs_razorpay_secret' );
+    register_setting( 'dpbs_settings_group', 'dpbs_admin_email' );
+    register_setting( 'dpbs_settings_group', 'dpbs_default_price' );
+    register_setting( 'dpbs_settings_group', 'dpbs_default_seats' );
+    register_setting( 'dpbs_settings_group', 'dpbs_limited_seats' );
+}
+
+/* ==========================================================================
+   4. ADMIN ASSETS
+   ========================================================================== */
+
+add_action( 'admin_enqueue_scripts', 'dpbs_enqueue_admin_assets' );
+function dpbs_enqueue_admin_assets( $hook ) {
+    if ( 'day-pass-bookings_page_dpbs-settings' !== $hook ) return;
+    
+    wp_enqueue_style( 'dpbs-admin-css', DPBS_PLUGIN_URL . 'assets/css/admin.css', array(), DPBS_VERSION );
+    wp_enqueue_script( 'dpbs-admin-js', DPBS_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), DPBS_VERSION, true );
+    wp_localize_script( 'dpbs-admin-js', 'dpbs_admin_obj', array(
+        'ajax_url' => admin_url( 'admin-ajax.php' ),
+        'nonce'    => wp_create_nonce( 'dpbs_admin_nonce' )
+    ));
+}
+
+/* ==========================================================================
+   5. ADMIN BOOKINGS LIST (With Razorpay Details)
+   ========================================================================== */
+
+function dpbs_bookings_page() {
+    global $wpdb;
+    $table = $wpdb->prefix . 'dpbs_bookings';
+    $bookings = $wpdb->get_results("SELECT * FROM $table ORDER BY created_at DESC");
+    echo '<div class="wrap"><h2>Day Pass Bookings</h2><table class="widefat fixed striped"><thead><tr><th>Customer</th><th>Email</th><th>Phone</th><th>Service</th><th>Location</th><th>Date</th><th>Seats</th><th>Amount</th><th>Order ID</th><th>Payment ID</th><th>Status</th></tr></thead><tbody>';
+    foreach ( $bookings as $b ) {
+        echo '<tr>';
+        echo '<td>' . esc_html($b->customer_name) . '</td>';
+        echo '<td>' . esc_html($b->customer_email) . '</td>';
+        echo '<td>' . esc_html($b->customer_phone) . '</td>';
+        echo '<td>' . get_the_title($b->service_id) . '</td>';
+        echo '<td>' . get_the_title($b->location_id) . '</td>';
+        echo '<td>' . esc_html($b->booking_date) . '</td>';
+        echo '<td>' . esc_html($b->seats) . '</td>';
+        echo '<td>₹' . esc_html($b->total_amount) . '</td>';
+        echo '<td>' . esc_html($b->razorpay_order_id) . '</td>';
+        echo '<td>' . esc_html($b->razorpay_payment_id) . '</td>';
+        echo '<td>' . esc_html(ucfirst($b->status)) . '</td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table></div>';
+}
+
+/* ==========================================================================
+   6. FRONTEND SHORTCODE & ASSETS
+   ========================================================================== */
+
+add_shortcode( 'book_day_pass', 'dpbs_render_booking_form' );
+function dpbs_render_booking_form( $atts ) {
+    $atts = shortcode_atts( array(
+        'service_id'  => '',
+        'city_id'     => '',
+        'location_id' => '',
+        'instance_id' => '',  // NEW: Unique instance identifier
+    ), $atts, 'book_day_pass' );
+
+    if ( is_singular( 'service' ) ) $atts['service_id'] = get_the_ID();
+    if ( is_singular( 'city' ) ) {
+        if ( wp_get_post_parent_id( get_the_ID() ) ) {
+            $atts['location_id'] = get_the_ID();
+            $atts['city_id'] = wp_get_post_parent_id( get_the_ID() );
+        } else {
+            $atts['city_id'] = get_the_ID();
+        }
+    }
+// Handle URL parameters - supports both numeric IDs and slugs
+if ( isset( $_GET['service'] ) ) {
+    $atts['service_id'] = dpbs_resolve_post_id( $_GET['service'], 'service' );
+}
+if ( isset( $_GET['city'] ) ) {
+    $atts['city_id'] = dpbs_resolve_post_id( $_GET['city'], 'city' );
+}
+if ( isset( $_GET['location'] ) ) {
+    $location_id = dpbs_resolve_post_id( $_GET['location'], 'city' );
+    $atts['location_id'] = $location_id;
+    
+    // Auto-detect city from location's parent if city not already set
+    if ( $location_id && empty( $atts['city_id'] ) ) {
+        $parent_id = wp_get_post_parent_id( $location_id );
+        if ( $parent_id ) {
+            $atts['city_id'] = $parent_id;
+        }
+    }
+}
+
+    // Generate unique instance ID if not provided
+    if ( empty($atts['instance_id']) ) {
+        $atts['instance_id'] = 'dpbs-' . wp_unique_id();
+    }
+
+    wp_enqueue_style( 'dpbs-front-css', DPBS_PLUGIN_URL . 'assets/css/frontend.css', array(), DPBS_VERSION );
+    wp_enqueue_script( 'razorpay-checkout', 'https://checkout.razorpay.com/v1/checkout.js', array(), null, true );
+    wp_enqueue_script( 'dpbs-front-js', DPBS_PLUGIN_URL . 'assets/js/frontend.js', array('jquery', 'razorpay-checkout'), DPBS_VERSION, true );
+
+    wp_localize_script( 'dpbs-front-js', 'dpbs_obj', array(
+        'ajax_url'      => admin_url( 'admin-ajax.php' ),
+        'nonce'         => wp_create_nonce('dpbs_nonce'),
+        'razorpay_key'  => get_option('dpbs_razorpay_key'),
+        'pre_location'  => $atts['location_id'],
+        'pre_service'   => $atts['service_id'],
+        'pre_city'      => $atts['city_id']
+    ) );
+
+    $services = get_posts( array( 'post_type' => 'service', 'numberposts' => -1,'post__not_in' => array( 357 ), 'post_status' => 'publish' ) );
+    $cities = get_posts( array( 'post_type' => 'city', 'post_parent' => 0, 'numberposts' => -1, 'post_status' => 'publish' ) );
+
+    // If a service is preset (via singular page or URL param), only show cities that offer it
+    if ( ! empty( $atts['service_id'] ) ) {
+        $cities = array_values( array_filter( $cities, function( $city ) use ( $atts ) {
+            return dpbs_city_offers_service( $city->ID, $atts['service_id'] );
+        } ) );
+    }
+
+    $iid = esc_attr($atts['instance_id']);
+    
+    ob_start();
+    ?>
+    <!-- CRITICAL: Wrapper with unique class and data attribute for instance scoping -->
+   <div class="dpbs-booking-instance" data-instance-id="<?php echo $iid; ?>" 
+     data-pre-service="<?php echo esc_attr($atts['service_id']); ?>"
+     data-pre-city="<?php echo esc_attr($atts['city_id']); ?>"
+     data-pre-location="<?php echo esc_attr($atts['location_id']); ?>">
+        <div class="cwf-modal-overlay is-open" style="position:relative; background:transparent; padding:0; display:block;">
+            <div class="cwf-modal" style="max-width: 100%; box-shadow:none; border-radius: 0;">
+                <h2 class="cwf-form-heading">Book a Day Pass!</h2>
+                
+                <div style="margin-bottom: 24px; font-size: 18px; font-weight: 600; color: #1f1f1f;">
+                    Price: ₹<span id="<?php echo $iid; ?>-price-display">0.00</span> / Seat
+                </div>
+
+                <form id="<?php echo $iid; ?>-booking-form" class="cwf-form-grid dpbs-booking-form" data-instance="<?php echo $iid; ?>" novalidate>
+                    <div class="cwf-field">
+                        <label>Service</label>
+                        <div class="cwf-select-wrap">
+                            <select name="service" id="<?php echo $iid; ?>-service" class="dpbs-service" required>
+                                <option value="">Select Service</option>
+                                <?php foreach ( $services as $service ) : ?>
+                                    <option value="<?php echo esc_attr($service->ID); ?>" <?php selected( $atts['service_id'], $service->ID ); ?>>
+                                        <?php echo esc_html( $service->post_title ); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="cwf-field">
+                        <label>City</label>
+                        <div class="cwf-select-wrap">
+                            <select name="city" id="<?php echo $iid; ?>-city" class="dpbs-city" required>
+                                <option value="">Select City</option>
+                                <?php foreach ( $cities as $city ) : ?>
+                                    <option value="<?php echo esc_attr($city->ID); ?>" <?php selected( $atts['city_id'], $city->ID ); ?>>
+                                        <?php echo esc_html( $city->post_title ); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="cwf-field">
+                        <label>Location</label>
+                        <div class="cwf-select-wrap">
+                            <select name="location" id="<?php echo $iid; ?>-location" class="dpbs-location" required>
+                                <option value="">Select Location</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="cwf-field">
+                        <label>Company (Optional)</label>
+                        <input type="text" name="company" class="dpbs-company" />
+                    </div>
+                    <div class="cwf-field">
+                        <label>Full Name</label>
+                        <input type="text" name="full_name" class="dpbs-fullname" required />
+                    </div>
+                    <div class="cwf-field">
+                        <label>Phone Number</label>
+                        <input type="tel" name="phone" class="dpbs-phone" required placeholder="10-digit Indian number" />
+                        <small class="cwf-field-hint">e.g. 9876543210</small>
+                    </div>
+                    <div class="cwf-field">
+                        <label>Email</label>
+                        <input type="email" name="email" class="dpbs-email" required placeholder="you@example.com" />
+                    </div>
+                    <div class="cwf-field">
+                        <label>No. of Seats</label>
+                        <div class="cwf-select-wrap">
+                            <select name="seats" id="<?php echo $iid; ?>-seats" class="dpbs-seats" required>
+                                <?php for ($i = 1; $i <= 50; $i++): ?>
+                                    <option value="<?php echo $i; ?>" <?php selected($i, 1); ?>><?php echo $i; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <small id="<?php echo $iid; ?>-seats-info" class="dpbs-seats-info" style="color:#666; margin-top:5px;"></small>
+                    </div>
+                    
+                    <div class="cwf-field" style="grid-column: 1 / -1;">
+                        <label>Date</label>
+                        <div class="cwf-date-field dpbs-date-field">
+                            <input type="text" name="date" id="<?php echo $iid; ?>-date" class="dpbs-date" required readonly placeholder="Select available date" />
+                            <div class="cwf-date-icon"><span class="dashicons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
+ </span></div>
+                            <!-- Calendar popover - uses FIXED positioning to avoid clipping -->
+                            <div class="cwf-calendar-popover dpbs-calendar-popover" id="<?php echo $iid; ?>-calendar-popover" style="position: fixed; z-index: 1000000;">
+                                <div class="cwf-cal-header">
+                                    <button type="button" class="cwf-cal-nav-btn dpbs-cal-nav" data-dir="prev">&laquo;</button>
+                                    <span class="cwf-cal-title dpbs-cal-title"></span>
+                                    <button type="button" class="cwf-cal-nav-btn dpbs-cal-nav" data-dir="next">&raquo;</button>
+                                </div>
+                                <div class="cwf-cal-grid">
+                                    <div class="cwf-cal-dow">Su</div><div class="cwf-cal-dow">Mo</div>
+                                    <div class="cwf-cal-dow">Tu</div><div class="cwf-cal-dow">We</div>
+                                    <div class="cwf-cal-dow">Th</div><div class="cwf-cal-dow">Fr</div>
+                                    <div class="cwf-cal-dow is-weekend">Sa</div>
+                                </div>
+                                <div class="cwf-cal-grid dpbs-cal-days" id="<?php echo $iid; ?>-cal-days"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cwf-form-footer" style="grid-column: 1 / -1;">
+                        <div class="cwf-form-message dpbs-form-message" id="<?php echo $iid; ?>-form-message"></div>
+                        <button type="submit" class="cwf-submit-btn dpbs-submit-btn jd-bookaday-button">
+                           Book Now <span class="dashicons dashicons-arrow-right-alt2"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+/* ==========================================================================
+   7. AJAX HANDLERS
+   ========================================================================== */
+
+add_action( 'wp_ajax_dpbs_get_cities_for_service', 'dpbs_get_cities_for_service' );
+add_action( 'wp_ajax_nopriv_dpbs_get_cities_for_service', 'dpbs_get_cities_for_service' );
+function dpbs_get_cities_for_service() {
+    $service_id = intval( $_POST['service_id'] );
+    $cities = get_posts( array( 'post_type' => 'city', 'post_parent' => 0, 'numberposts' => -1, 'post_status' => 'publish' ) );
+
+    $html = '<option value="">Select City</option>';
+    foreach ( $cities as $city ) {
+        if ( ! dpbs_city_offers_service( $city->ID, $service_id ) ) continue;
+        $html .= '<option value="' . esc_attr($city->ID) . '">' . esc_html( $city->post_title ) . '</option>';
+    }
+    echo $html;
+    wp_die();
+}
+
+add_action( 'wp_ajax_dpbs_get_locations', 'dpbs_get_locations' );
+add_action( 'wp_ajax_nopriv_dpbs_get_locations', 'dpbs_get_locations' );
+function dpbs_get_locations() {
+    $city_id = intval( $_POST['city_id'] );
+    $service_id = isset( $_POST['service_id'] ) ? intval( $_POST['service_id'] ) : 0;
+    $locations = get_posts( array( 'post_type' => 'city', 'post_parent' => $city_id, 'numberposts' => -1, 'post_status' => 'publish' ) );
+    $html = '<option value="">Select Location</option>';
+    foreach ( $locations as $loc ) {
+        if ( ! dpbs_location_offers_service( $loc->ID, $service_id ) ) continue;
+        $html .= '<option value="' . esc_attr($loc->ID) . '">' . esc_html( $loc->post_title ) . '</option>';
+    }
+    echo $html;
+    wp_die();
+}
+
+add_action( 'wp_ajax_dpbs_get_price', 'dpbs_get_price' );
+add_action( 'wp_ajax_nopriv_dpbs_get_price', 'dpbs_get_price' );
+function dpbs_get_price() {
+    $service_id = intval( $_POST['service_id'] );
+    $location_id = intval( $_POST['location_id'] );
+    $price = dpbs_calculate_price( $service_id, $location_id );
+    echo json_encode( array( 'success' => true, 'price' => $price ) );
+    wp_die();
+}
+
+add_action( 'wp_ajax_dpbs_get_calendar', 'dpbs_get_calendar' );
+add_action( 'wp_ajax_nopriv_dpbs_get_calendar', 'dpbs_get_calendar' );
+function dpbs_get_calendar() {
+    global $wpdb;
+    $service_id = intval( $_POST['service_id'] );
+    $location_id = intval( $_POST['location_id'] );
+    $month = intval( $_POST['month'] );
+    $year = intval( $_POST['year'] );
+    
+    $table_book = $wpdb->prefix . 'dpbs_bookings';
+    $default_seats = get_option('dpbs_default_seats', 10);
+    $threshold = get_option('dpbs_limited_seats', 3);
+    
+    $slug = "s{$service_id}_l{$location_id}";
+    $calendar = new DPBS_Calendar( $slug );
+    $manual_statuses = $calendar->get_all();
+    
+    $days_in_month = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+    $start_date = sprintf('%04d-%02d-01', $year, $month);
+    $end_date = sprintf('%04d-%02d-%02d', $year, $month, $days_in_month);
+    
+    $bookings = $wpdb->get_results( $wpdb->prepare(
+        "SELECT booking_date, SUM(seats) as booked_seats 
+         FROM $table_book 
+         WHERE service_id = %d AND location_id = %d AND booking_date BETWEEN %s AND %s AND status = 'confirmed'
+         GROUP BY booking_date",
+        $service_id, $location_id, $start_date, $end_date
+    ) );
+    
+    $booked_map = array();
+    foreach($bookings as $b) $booked_map[$b->booking_date] = intval($b->booked_seats);
+
+    $calendar_data = array();
+    $today = current_time('Y-m-d');
+    
+    for ($day = 1; $day <= $days_in_month; $day++) {
+        $dateStr = sprintf('%04d-%02d-%02d', $year, $month, $day);
+        $status = 'available';
+        $avail_seats = $default_seats;
+        
+        if ($dateStr < $today) {
+            $status = 'past';
+        } else {
+            $booked = isset($booked_map[$dateStr]) ? $booked_map[$dateStr] : 0;
+            $avail_seats = $default_seats - $booked;
+            
+            if (isset($manual_statuses[$dateStr]) && $manual_statuses[$dateStr] === 'full') {
+                $status = 'full'; $avail_seats = 0;
+            } elseif (isset($manual_statuses[$dateStr]) && $manual_statuses[$dateStr] === 'limited') {
+                $status = 'limited'; $avail_seats = min($avail_seats, $threshold); 
+            } elseif ($avail_seats <= 0) {
+                $status = 'full'; $avail_seats = 0;
+            } elseif ($avail_seats <= $threshold) {
+                $status = 'limited';
+            }
+        }
+        $calendar_data[$dateStr] = array('status' => $status, 'seats' => $avail_seats);
+    }
+    
+    echo json_encode( array( 'success' => true, 'calendar' => $calendar_data ) );
+    wp_die();
+}
+
+add_action( 'wp_ajax_dpbs_toggle_date_status', 'dpbs_toggle_date_status' );
+function dpbs_toggle_date_status() {
+    check_ajax_referer( 'dpbs_admin_nonce', 'nonce' );
+    $date = sanitize_text_field( $_POST['date'] );
+    $service_id = intval( $_POST['service_id'] );
+    $location_id = intval( $_POST['location_id'] );
+    $target_status = sanitize_text_field( $_POST['target_status'] );
+    
+    $slug = "s{$service_id}_l{$location_id}";
+    $calendar = new DPBS_Calendar( $slug );
+    $calendar->set_status( $date, $target_status );
+    
+    echo json_encode( array( 'success' => true ) );
+    wp_die();
+}
+
+add_action( 'wp_ajax_dpbs_save_price_rule', 'dpbs_save_price_rule' );
+function dpbs_save_price_rule() {
+    check_ajax_referer( 'dpbs_admin_nonce', 'nonce' );
+    $type = sanitize_text_field($_POST['type']);
+    $price = floatval($_POST['price']);
+    
+    if($type === 'svc') {
+        $service_id = intval($_POST['service_id']);
+        $prices = get_option('dpbs_service_prices', array());
+        $prices[$service_id] = $price;
+        update_option('dpbs_service_prices', $prices);
+    } elseif($type === 'loc') {
+        $service_id = intval($_POST['service_id']);
+        $location_id = intval($_POST['location_id']);
+        $prices = get_option('dpbs_location_prices', array());
+        $key = $service_id . '_' . $location_id;
+        $prices[$key] = $price;
+        update_option('dpbs_location_prices', $prices);
+    }
+    
+    $svc_prices = get_option('dpbs_service_prices', array());
+    $loc_prices = get_option('dpbs_location_prices', array());
+    
+    if($type === 'svc') {
+        if(empty($svc_prices)) {
+            echo '<li class="cwf-price-empty">No service prices set yet.</li>';
+        } else {
+            foreach($svc_prices as $sid => $p): 
+                if(!get_post_status($sid)) continue; ?>
+                <li>
+                    <span class="cwf-price-rule-name"><?php echo get_the_title($sid); ?></span>
+                    <span class="cwf-price-rule-value">₹<?php echo esc_html($p); ?></span>
+                    <a href="#" class="cwf-price-delete" data-type="svc" data-id="<?php echo esc_attr($sid); ?>">Delete</a>
+                </li>
+            <?php endforeach;
+        }
+    } else {
+        if(empty($loc_prices)) {
+            echo '<li class="cwf-price-empty">No location prices set yet.</li>';
+        } else {
+            foreach($loc_prices as $key => $p): 
+                list($sid, $lid) = explode('_', $key);
+                if(!get_post_status($sid) || !get_post_status($lid)) continue; ?>
+                <li>
+                    <span class="cwf-price-rule-name"><?php echo get_the_title($sid); ?> @ <?php echo get_the_title($lid); ?></span>
+                    <span class="cwf-price-rule-value">₹<?php echo esc_html($p); ?></span>
+                    <a href="#" class="cwf-price-delete" data-type="loc" data-id="<?php echo esc_attr($key); ?>">Delete</a>
+                </li>
+            <?php endforeach;
+        }
+    }
+    wp_die();
+}
+
+add_action( 'wp_ajax_dpbs_delete_price_rule', 'dpbs_delete_price_rule' );
+function dpbs_delete_price_rule() {
+    check_ajax_referer( 'dpbs_admin_nonce', 'nonce' );
+    $type = sanitize_text_field($_POST['type']);
+    $id = sanitize_text_field($_POST['id']);
+    
+    if($type === 'svc') {
+        $prices = get_option('dpbs_service_prices', array());
+        unset($prices[$id]);
+        update_option('dpbs_service_prices', $prices);
+        $updated_prices = $prices;
+        $list_type = 'svc';
+    } elseif($type === 'loc') {
+        $prices = get_option('dpbs_location_prices', array());
+        unset($prices[$id]);
+        update_option('dpbs_location_prices', $prices);
+        $updated_prices = $prices;
+        $list_type = 'loc';
+    }
+    
+    if(empty($updated_prices)) {
+        echo $list_type === 'svc' ? '<li class="cwf-price-empty">No service prices set yet.</li>' : '<li class="cwf-price-empty">No location prices set yet.</li>';
+    } else {
+        foreach($updated_prices as $key => $p): 
+            if($list_type === 'svc') {
+                if(!get_post_status($key)) continue; ?>
+                <li>
+                    <span class="cwf-price-rule-name"><?php echo get_the_title($key); ?></span>
+                    <span class="cwf-price-rule-value">₹<?php echo esc_html($p); ?></span>
+                    <a href="#" class="cwf-price-delete" data-type="svc" data-id="<?php echo esc_attr($key); ?>">Delete</a>
+                </li>
+            <?php } else {
+                list($sid, $lid) = explode('_', $key);
+                if(!get_post_status($sid) || !get_post_status($lid)) continue; ?>
+                <li>
+                    <span class="cwf-price-rule-name"><?php echo get_the_title($sid); ?> @ <?php echo get_the_title($lid); ?></span>
+                    <span class="cwf-price-rule-value">₹<?php echo esc_html($p); ?></span>
+                    <a href="#" class="cwf-price-delete" data-type="loc" data-id="<?php echo esc_attr($key); ?>">Delete</a>
+                </li>
+            <?php }
+        endforeach;
+    }
+    wp_die();
+}
+
+// Create Razorpay Order (NO DB INSERT HERE)
+add_action( 'wp_ajax_dpbs_create_booking', 'dpbs_create_booking' );
+add_action( 'wp_ajax_nopriv_dpbs_create_booking', 'dpbs_create_booking' );
+function dpbs_create_booking() {
+    check_ajax_referer( 'dpbs_nonce', 'nonce' );
+    
+    $service_id = intval( $_POST['service'] );
+    $location_id = intval( $_POST['location'] );
+    $date = sanitize_text_field( $_POST['date'] );
+    $seats = intval( $_POST['seats'] );
+
+    /* CHANGED: Server-side email validation */
+    $email = sanitize_email( $_POST['email'] );
+    if ( ! is_email( $email ) ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Please enter a valid email address.' ) );
+        wp_die();
+    }
+
+    /* CHANGED: Server-side Indian phone validation */
+    $phone_raw = sanitize_text_field( $_POST['phone'] );
+    $phone_clean = preg_replace( '/[\s\-\+\(\)]/', '', $phone_raw );
+    if ( ! preg_match( '/^[6-9]\d{9}$/', $phone_clean ) ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Please enter a valid 10-digit Indian phone number starting with 6, 7, 8, or 9.' ) );
+        wp_die();
+    }
+    
+    // Validate that this service is actually offered at this location
+    if ( ! dpbs_location_offers_service( $location_id, $service_id ) ) {
+        echo json_encode( array( 'success' => false, 'message' => 'This service is not available at the selected location.' ) );
+        wp_die();
+    }
+
+    // Validate availability again just in case
+    $slug = "s{$service_id}_l{$location_id}";
+    $calendar = new DPBS_Calendar( $slug );
+    if ( $calendar->get_status($date) === 'full' ) {
+        echo json_encode( array( 'success' => false, 'message' => 'This date is fully booked.' ) );
+        wp_die();
+    }
+
+    $price = dpbs_calculate_price( $service_id, $location_id );
+    $total_amount = $price * $seats;
+
+    $api_key = get_option('dpbs_razorpay_key');
+    $api_secret = get_option('dpbs_razorpay_secret');
+    
+    $response = wp_remote_post( 'https://api.razorpay.com/v1/orders', array(
+        'headers' => array( 'Authorization' => 'Basic ' . base64_encode( $api_key . ':' . $api_secret ), 'Content-Type' => 'application/json' ),
+        'body' => json_encode( array( 'amount' => $total_amount * 100, 'currency' => 'INR', 'receipt' => 'dpbs_' . wp_generate_password(6, false) ) ),
+        'timeout' => 30
+    ));
+    
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+    
+    if ( isset( $body['id'] ) ) {
+        echo json_encode( array(
+            'success' => true,
+            'order_id' => $body['id'],
+            'amount' => $total_amount * 100,
+            'description' => 'Day Pass Booking for ' . $date,
+            'booking_data' => array(
+                'service' => $service_id,
+                'city' => intval($_POST['city']),
+                'location' => $location_id,
+                'date' => $date,
+                'seats' => $seats,
+                'full_name' => sanitize_text_field($_POST['full_name']),
+                'email' => $email,
+                'phone' => $phone_clean,
+                'company' => sanitize_text_field($_POST['company'])
+            )
+        ) );
+    } else {
+        echo json_encode( array( 'success' => false, 'message' => 'Payment Gateway Error.' ) );
+    }
+    wp_die();
+}
+
+// Verify Payment & SAVE DATA TO DB ONLY HERE
+add_action( 'wp_ajax_dpbs_verify_payment', 'dpbs_verify_payment' );
+add_action( 'wp_ajax_nopriv_dpbs_verify_payment', 'dpbs_verify_payment' );
+function dpbs_verify_payment() {
+    check_ajax_referer( 'dpbs_nonce', 'nonce' );
+    global $wpdb;
+    $table_book = $wpdb->prefix . 'dpbs_bookings';
+    
+    $payment_id = sanitize_text_field( $_POST['payment_id'] );
+    $order_id = sanitize_text_field( $_POST['order_id'] );
+    $signature = sanitize_text_field( $_POST['signature'] );
+    
+    $service_id = intval( $_POST['service'] );
+    $location_id = intval( $_POST['location'] );
+    $city_id = intval( $_POST['city'] );
+    $date = sanitize_text_field( $_POST['date'] );
+    $seats = intval( $_POST['seats'] );
+    
+    $api_secret = get_option('dpbs_razorpay_secret');
+    $generated_signature = hash_hmac( 'sha256', $order_id . '|' . $payment_id, $api_secret );
+    
+    if ( $generated_signature === $signature ) {
+        $price = dpbs_calculate_price( $service_id, $location_id );
+        $total_amount = $price * $seats;
+        
+        $wpdb->insert( $table_book, array(
+            'service_id'       => $service_id,
+            'city_id'          => $city_id,
+            'location_id'      => $location_id,
+            'booking_date'     => $date,
+            'seats'            => $seats,
+            'total_amount'     => $total_amount,
+            'customer_name'    => sanitize_text_field( $_POST['full_name'] ),
+            'customer_email'   => sanitize_email( $_POST['email'] ),
+            'customer_phone'   => sanitize_text_field( $_POST['phone'] ),
+            'customer_company' => sanitize_text_field( $_POST['company'] ),
+            'razorpay_order_id'=> $order_id,
+            'razorpay_payment_id' => $payment_id,
+            'status'           => 'confirmed'
+        ));
+        
+        $admin_email = get_option('dpbs_admin_email', get_option('admin_email'));
+        $subject = 'New Day Pass Booking Confirmed';
+        $message = "A new booking has been confirmed.\n\nName: " . sanitize_text_field($_POST['full_name']) . "\nEmail: " . sanitize_email($_POST['email']) . "\nPhone: " . sanitize_text_field($_POST['phone']) . "\n";
+        $message .= "Service: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\n";
+        $message .= "Date: {$date}\nSeats: {$seats}\nTotal: ₹{$total_amount}\nRazorpay Payment ID: {$payment_id}";
+        wp_mail( $admin_email, $subject, $message );
+        
+        echo 'verified';
+    } else {
+        echo 'failed';
+    }
+    wp_die();
+}

@@ -1,0 +1,615 @@
+/* ===========================================================
+   Co-Working Forms — Front-end styles (Enhanced)
+   =========================================================== */
+
+/* ---- Trigger Button ---- */
+.cwf-trigger-btn {
+  background: linear-gradient(135deg, #e8521e 0%, #d44415 100%);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 16px 32px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(232, 82, 30, 0.35);
+  letter-spacing: 0.2px;
+}
+.cwf-trigger-btn:hover {
+  background: linear-gradient(135deg, #cf4716 0%, #b93d12 100%);
+  box-shadow: 0 6px 20px rgba(232, 82, 30, 0.45);
+  transform: translateY(-1px);
+}
+.cwf-trigger-btn:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: 0 2px 8px rgba(232, 82, 30, 0.3);
+}
+
+/* ---- Modal overlay ---- */
+.cwf-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 15, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+  padding: 20px;
+}
+.cwf-modal-overlay.is-open {
+  display: flex;
+}
+
+.cwf-modal {
+  background: #f5f3ed;
+  border-radius: 24px;
+  max-width: 760px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  padding: 44px 48px 36px;
+  box-shadow:
+    0 25px 60px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  animation: cwfModalIn 0.3s ease-out;
+}
+
+@keyframes cwfModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Custom scrollbar inside modal */
+.cwf-modal::-webkit-scrollbar {
+  width: 6px;
+}
+.cwf-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cwf-modal::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+.cwf-modal::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.cwf-modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: rgba(0, 0, 0, 0.06);
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.cwf-modal-close:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: #1f1f1f;
+  transform: rotate(90deg);
+}
+
+.cwf-form-heading {
+  font-size: 34px;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin: 0 0 8px;
+  letter-spacing: -0.8px;
+  line-height: 1.15;
+}
+
+/* ---- Price Display ---- */
+.cwf-price-display-wrap {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  background: linear-gradient(135deg, #fff7ed 0%, #fff1e0 100%);
+  border: 1px solid rgba(232, 82, 30, 0.15);
+  border-radius: 12px;
+  padding: 10px 20px;
+  margin-bottom: 28px;
+}
+.cwf-price-display-wrap .cwf-price-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #666;
+}
+.cwf-price-display-wrap .cwf-price-amount {
+  font-size: 24px;
+  font-weight: 800;
+  color: #e8521e;
+  letter-spacing: -0.5px;
+}
+.cwf-price-display-wrap .cwf-price-per {
+  font-size: 13px;
+  color: #999;
+  font-weight: 500;
+}
+
+/* ---- Field grid (2 columns) ---- */
+.cwf-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 24px;
+}
+
+.cwf-field {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.cwf-field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #444;
+  margin-bottom: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cwf-field input[type="text"],
+.cwf-field input[type="tel"],
+.cwf-field input[type="email"],
+.cwf-field input[type="number"],
+.cwf-field textarea,
+.cwf-select-wrap select {
+  background: #fff;
+  border: 1.5px solid #ddd9d0;
+  border-radius: 12px;
+  padding: 13px 16px;
+  font-size: 15px;
+  color: #1f1f1f;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+.cwf-field input::placeholder {
+  color: #b5b0a5;
+}
+.cwf-field input:hover,
+.cwf-select-wrap select:hover {
+  border-color: #c5c0b6;
+}
+.cwf-field input:focus,
+.cwf-field textarea:focus,
+.cwf-select-wrap select:focus {
+  outline: none;
+  border-color: #e8521e;
+  box-shadow: 0 0 0 4px rgba(232, 82, 30, 0.1);
+  background: #fff;
+}
+
+/* Number input spinner removal for cleaner look */
+.cwf-field input[type="number"]::-webkit-inner-spin-button,
+.cwf-field input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.cwf-field input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.cwf-select-wrap {
+  position: relative;
+}
+.cwf-select-wrap select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 44px;
+}
+.cwf-select-wrap::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #888;
+  pointer-events: none;
+  transition: border-color 0.15s ease;
+}
+.cwf-select-wrap:hover::after {
+  border-top-color: #555;
+}
+
+/* ---- Date field with calendar icon + popover ---- */
+.cwf-date-field {
+  position: relative;
+}
+.cwf-date-field input {
+  cursor: pointer;
+  background: #fff;
+  padding-left: 44px;
+}
+.cwf-date-icon {
+  position: absolute;
+  left: 12px;
+  top: 38px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e8521e, #d44415);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(232, 82, 30, 0.3);
+}
+.cwf-date-icon .dashicons {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.cwf-calendar-popover {
+  display: none;
+  position: absolute !important;
+  top: calc(85% + 10px) !important;
+  left: 0 !important;
+  z-index: 10;
+  width: 320px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  padding: 18px;
+  animation: cwfCalIn 0.2s ease-out;
+}
+.cwf-calendar-popover.is-open {
+  display: block;
+}
+
+@keyframes cwfCalIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cwf-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0ede6;
+}
+.cwf-cal-header .cwf-cal-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #1f1f1f;
+  letter-spacing: -0.2px;
+}
+.cwf-cal-nav-btn {
+  background: #f5f3ed;
+  border: none;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+.cwf-cal-nav-btn:hover {
+  background: #e8e4da;
+  color: #1f1f1f;
+}
+
+.cwf-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  text-align: center;
+}
+.cwf-cal-dow {
+  font-size: 10px;
+  font-weight: 800;
+  color: #aaa;
+  padding-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.cwf-cal-dow.is-weekend {
+  color: #e8521e;
+}
+
+.cwf-cal-day {
+  position: relative;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 0 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #2b2b2b;
+  background: none;
+  border: 1.5px solid transparent;
+  width: 100%;
+  transition: all 0.12s ease;
+}
+.cwf-cal-day:hover:not(.is-disabled):not(.is-empty):not(.is-selected) {
+  background: #f8f6f1;
+  border-color: #e8e4da;
+}
+.cwf-cal-day.is-empty {
+  cursor: default;
+  pointer-events: none;
+}
+.cwf-cal-day.is-weekend {
+  color: #e8521e;
+}
+.cwf-cal-day.is-disabled {
+  color: #d4d0c8;
+  cursor: not-allowed;
+  text-decoration: line-through;
+  text-decoration-color: #e0dcd4;
+}
+.cwf-cal-day.is-selected {
+  background: #e8521e;
+  color: #fff;
+  font-weight: 700;
+  border-color: #e8521e;
+  box-shadow: 0 3px 10px rgba(232, 82, 30, 0.3);
+}
+.cwf-cal-day.is-selected .cwf-dot {
+  background: #fff !important;
+}
+.cwf-cal-day .cwf-dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  transition: background 0.15s ease;
+}
+.cwf-cal-day .cwf-dot.cwf-dot-limited {
+  background: #3b82f6;
+  box-shadow: 0 0 4px rgba(59, 130, 246, 0.4);
+}
+.cwf-cal-day .cwf-dot.cwf-dot-full {
+  background: #ef4444;
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+}
+
+/* ---- Footer / submit ---- */
+.cwf-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e0dcd4;
+}
+.cwf-form-message {
+  font-size: 13px;
+  flex: 1;
+  font-weight: 500;
+  line-height: 1.4;
+  transition: color 0.15s ease;
+}
+.cwf-form-message.is-error {
+  color: #c0392b;
+}
+.cwf-form-message.is-success {
+  color: #1c7a3d;
+}
+
+.cwf-submit-btn {
+  background: linear-gradient(135deg, #e8521e 0%, #d44415 100%);
+  color: #fff;
+  border: none;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(232, 82, 30, 0.35);
+  transition: all 0.2s ease;
+}
+.cwf-submit-btn:hover {
+  background: linear-gradient(135deg, #cf4716 0%, #b93d12 100%);
+  box-shadow: 0 6px 20px rgba(232, 82, 30, 0.45);
+  transform: translateY(-1px);
+}
+.cwf-submit-btn:active {
+  transform: translateY(0) scale(0.95);
+}
+.cwf-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.cwf-submit-btn .dashicons {
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+}
+
+/* ---- Validation States ---- */
+.cwf-field-hint {
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 5px;
+  display: block;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.cwf-field input.cwf-field-error,
+.cwf-field select.cwf-field-error {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1) !important;
+  animation: cwfShake 0.4s ease;
+}
+.cwf-field input.cwf-field-valid {
+  border-color: #22c55e !important;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.08) !important;
+}
+
+@keyframes cwfShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+/* ---- Seats info ---- */
+#dpbs-seats-info {
+  font-size: 12px;
+  color: #e8521e;
+  font-weight: 600;
+  margin-top: 5px;
+  display: block;
+}
+/* ============================================
+   CALENDAR POPOVER - FIXED POSITIONING FIX
+   ============================================ */
+
+.dpbs-calendar-popover {
+  display: none;
+  position: fixed !important; /* Changed from absolute to fixed */
+  z-index: 1000000; /* Higher than Elementor popups */
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  width: 300px;
+  padding: 15px;
+  margin-top: 5px;
+}
+
+.dpbs-calendar-popover.is-open {
+  display: block;
+}
+
+/* Ensure the date field container doesn't clip */
+.cwf-date-field {
+  position: relative;
+}
+
+/* Prevent overflow clipping in popup containers */
+.day-pass-popup-content{
+  overflow-x: hidden !important;
+}
+.day-pass-popup-content .cwf-date-field {
+  overflow: visible;
+}
+
+.cwf-submit-btn.jd-text-proceed{
+  width: 200px; display: flex; justify-content: space-between; border-radius: 10px; background: #fff; color: #1a1a1a; font-weight: 600; box-shadow: none;
+}
+.cwf-submit-btn.jd-text-proceed span{
+  display: inline-block; padding: 0px 15px;
+}
+.cwf-submit-btn.jd-text-proceed svg {
+  background: linear-gradient(135deg, #e8521e 0%, #d44415 100%);
+  padding: 12px; width: 45px; height: 45px; border-radius: 8px; box-shadow: none; color: #fff;
+}
+.cwf-submit-btn.jd-text-proceed:hover, .cwf-submit-btn.jd-text-proceed:focus{
+  background-color: #fff;
+}
+.cwf-submit-btn.dpbs-submit-btn.jd-bookaday-button {
+    width:auto; height:45px; background: #e8521e; color: #ffffff; border: none; padding: 14px 32px; font-size: 15px; font-weight: 700; border-radius: 8px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.cwf-submit-btn.dpbs-submit-btn.jd-bookaday-button span{
+  display: none;
+}
+/* ---- Responsive ---- */
+@media (max-width: 600px) {
+  .cwf-form-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .cwf-modal {
+    padding: 28px 22px 24px;
+    border-radius: 20px;
+  }
+  .cwf-form-heading {
+    font-size: 26px;
+  }
+  .cwf-calendar-popover {
+    width: calc(100vw - 64px);
+    left: -10px;
+    right: 0;
+  }
+  .cwf-form-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 12px;
+    margin-top: 20px !important;
+  }
+  .cwf-form-message {
+    text-align: center;
+  }
+  .cwf-submit-btn {
+    width: 100%;
+    border-radius: 14px;
+    height: 52px;
+  }
+  .cwf-price-display-wrap {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ---- Print hidden ---- */
+@media print {
+  .cwf-modal-overlay,
+  .cwf-trigger-btn {
+    display: none !important;
+  }
+}

@@ -1,0 +1,432 @@
+/* ===========================================================
+   ThinkHaus — Admin Styles
+   =========================================================== */
+
+.hbs-admin-wrap {
+  max-width: 1180px;
+}
+
+.hbs-admin-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 20px 0 24px;
+}
+
+.hbs-admin-header h1 {
+  margin: 0;
+  padding: 0;
+  font-size: 23px;
+}
+
+.hbs-admin-header-sub {
+  font-size: 14px;
+  color: #757575;
+  font-weight: 500;
+  padding: 3px 10px;
+  background: #fff;
+  border: 1px solid #dcdcde;
+  border-radius: 999px;
+}
+
+/* ---- Two-column layout ---- */
+.hbs-admin-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .hbs-admin-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hbs-admin-main,
+.hbs-admin-side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ---- Card ---- */
+.hbs-card {
+  background: #fff;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  padding: 24px 26px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.hbs-card-compact {
+  padding: 18px 20px;
+}
+
+.hbs-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 18px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid #eee;
+  color: #1d2327;
+}
+
+.hbs-card-compact .hbs-card-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #757575;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+}
+
+.hbs-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eee;
+}
+
+.hbs-card-title-row .hbs-card-title {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.hbs-card-footer {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #eee;
+}
+
+/* ---- Form rows ---- */
+.hbs-form-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f3f3f3;
+}
+
+.hbs-form-row:first-of-type {
+  padding-top: 4px;
+}
+
+.hbs-form-row:last-of-type {
+  border-bottom: none;
+}
+
+.hbs-form-row > label {
+  font-weight: 600;
+  font-size: 13px;
+  color: #1d2327;
+  padding-top: 8px;
+}
+
+.hbs-form-row-control input.regular-text {
+  width: 100%;
+  max-width: 360px;
+}
+
+.hbs-form-row-control .description {
+  margin: 6px 0 0;
+  color: #757575;
+  font-size: 12.5px;
+}
+
+@media (max-width: 600px) {
+  .hbs-form-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
+/* Checkbox Alignment Tweak */
+.hbs-form-row-checkbox > label {
+  padding-top: 0 !important;
+}
+
+/* ---- Shortcode box ---- */
+.hbs-shortcode-box {
+  display: block;
+  background: #f6f7f7;
+  border: 1px solid #dcdcde;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #d63384;
+  word-break: break-all;
+}
+
+/* ---- Legend ---- */
+.hbs-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 14px 0 20px;
+  padding: 12px 16px;
+  background: #f8f8f7;
+  border-radius: 6px;
+}
+
+.hbs-legend-item {
+  font-size: 12.5px;
+  color: #444;
+  display: inline-flex;
+  align-items: center;
+}
+
+.hbs-legend-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.hbs-dot-available {
+  background: #9aa0a6;
+}
+
+.hbs-dot-limited {
+  background: #3b82f6;
+}
+
+.hbs-dot-full {
+  background: #ef4444;
+}
+
+/* ---- Save indicator ---- */
+.hbs-autosave-indicator {
+  font-size: 12.5px;
+  font-weight: 500;
+  min-width: 70px;
+  text-align: right;
+}
+
+.hbs-autosave-indicator.is-success {
+  color: #1c7a3d;
+}
+
+.hbs-autosave-indicator.is-error {
+  color: #c0392b;
+}
+
+/* ---- Admin calendar ---- */
+#hbs-admin-calendar {
+  max-width: 380px;
+}
+
+.hbs-cal-loading,
+.hbs-cal-error {
+  padding: 40px 10px;
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+}
+
+.hbs-cal-error {
+  color: #c0392b;
+}
+
+.hbs-admin-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.hbs-admin-cal-month-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1d2327;
+}
+
+.hbs-admin-cal-nav {
+  background: #f6f7f7;
+  border: 1px solid #dcdcde;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+  line-height: 1;
+  color: #444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hbs-admin-cal-nav:hover {
+  background: #eee;
+  border-color: #c3c4c7;
+}
+
+.hbs-admin-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  text-align: center;
+}
+
+.hbs-admin-cal-dow {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #9aa0a6;
+  padding-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.hbs-admin-cal-day {
+  position: relative;
+  font-size: 13px;
+  padding: 9px 0 11px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: #f6f7f7;
+  color: #1d2327;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.hbs-admin-cal-day.is-empty {
+  background: none;
+  cursor: default;
+  pointer-events: none;
+}
+
+.hbs-admin-cal-day:hover:not(.is-empty):not(.is-past) {
+  border-color: #8c8f94;
+}
+
+.hbs-admin-cal-day.status-limited {
+  background: #e8f0fe;
+}
+
+.hbs-admin-cal-day.status-limited:hover {
+  border-color: #3b82f6;
+}
+
+.hbs-admin-cal-day.status-full {
+  background: #fdecec;
+  color: #b3413a;
+}
+
+.hbs-admin-cal-day.status-full:hover {
+  border-color: #ef4444;
+}
+
+.hbs-admin-cal-day.is-past {
+  cursor: not-allowed;
+  color: #c3c4c7;
+  background: repeating-linear-gradient(
+    45deg,
+    #f1f1f1,
+    #f1f1f1 4px,
+    #f7f7f7 4px,
+    #f7f7f7 8px
+  );
+  opacity: 0.75;
+}
+
+.hbs-admin-cal-day:disabled {
+  pointer-events: none;
+}
+
+.hbs-admin-cal-day .dot {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.hbs-admin-cal-day .dot.dot-limited {
+  background: #3b82f6;
+}
+
+.hbs-admin-cal-day .dot.dot-full {
+  background: #ef4444;
+}
+
+/* ---- Dashboard listing ---- */
+.hbs-admin-wrap .hbs-dashboard-list {
+  list-style: none;
+  margin: 20px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hbs-admin-wrap .hbs-dashboard-list li {
+  background: #fff;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+/* ---- Submissions table ---- */
+.hbs-admin-wrap table.widefat {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #dcdcde;
+}
+
+/* ---- Price List Styles ---- */
+.hbs-price-list {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hbs-price-list li {
+  background: #f6f7f7;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+}
+
+.hbs-price-list .hbs-price-rule-name {
+  font-weight: 600;
+  color: #1d2327;
+  flex: 1;
+}
+
+.hbs-price-list .hbs-price-rule-value {
+  color: #e8521e;
+  font-weight: 700;
+  margin: 0 16px;
+}
+
+.hbs-price-list .hbs-price-delete {
+  color: #b32d2e;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.hbs-price-list .hbs-price-delete:hover {
+  text-decoration: underline;
+}
+
+.hbs-price-list .hbs-price-empty {
+  color: #757575;
+  font-style: italic;
+  justify-content: center;
+}

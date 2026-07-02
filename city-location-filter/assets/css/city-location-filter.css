@@ -1,0 +1,275 @@
+/**
+ * City Location Filter — Stylesheet
+ * v1.0.7
+ *  - Left-aligned throughout (no text-align:center anywhere)
+ *  - Dropdown and cities in separate divs
+ *  - min-height on .cfs-cities-wrap prevents height-jump flicker between counts
+ *  - Opacity fade on swap for smooth transition
+ */
+
+/* ==========================================================================
+   OUTER CONTAINER
+   ========================================================================== */
+
+.city-container {
+  text-align: left; /* Ensure nothing from theme centres our content */
+}
+
+/* ==========================================================================
+   DROPDOWN SECTION — sits above, fully separate from carousel
+   ========================================================================== */
+
+.cfs-dropdown-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 28px;
+}
+
+.cfs-dropdown-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  display: block;
+}
+
+.cfs-service-select {
+  min-width: 220px;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: #fff;
+  cursor: pointer;
+  appearance: auto;
+}
+
+/* ==========================================================================
+   CITIES SECTION — carousel + hint + areas all inside here
+   min-height stops the section collapsing between item counts (kills flicker)
+   ========================================================================== */
+
+.cfs-cities-wrap {
+  min-height: 260px; /* Tall enough for stamp cards; prevents layout jump */
+  transition: opacity 0.15s ease;
+}
+
+/* ==========================================================================
+   CAROUSEL
+   ========================================================================== */
+
+.worklocation-slider {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.worklocation-slider .owl-stage-outer {
+  overflow: hidden;
+}
+
+.worklocation-slider .owl-item {
+  box-sizing: border-box;
+  min-width: 0;
+  float: left;
+}
+
+/* Owl centres items by default via text-align on the stage — override */
+.worklocation-slider .owl-stage {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* ==========================================================================
+   CITY CARDS
+   ========================================================================== */
+
+.worklocation-card {
+  padding: 4px;
+}
+
+.city-card {
+  display: block;
+  position: relative;
+  border: 3px solid transparent;
+  border-radius: 4px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.city-card img {
+  display: block;
+  width: 100%;
+  height: auto; /* Preserve natural stamp aspect ratio */
+  border-radius: 2px;
+}
+
+/* .city-card.active {
+  border-color: #e6a020;
+  box-shadow: 0 0 0 3px rgba(230, 160, 32, 0.3);
+}
+
+.city-card:hover:not(.active) {
+  border-color: rgba(230, 160, 32, 0.5);
+} */
+
+/* ==========================================================================
+   HINT
+   ========================================================================== */
+
+.cfs-city-hint {
+  margin: 14px 0 4px;
+  text-align: left;
+  color: #aaa;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* ==========================================================================
+   LOCATION AREAS
+   ========================================================================== */
+
+.cityfilter-areas {
+  display: none;
+  margin-top: 28px;
+  text-align: left;
+}
+
+.cityfilter-areas.areas-visible {
+  display: block;
+}
+
+.area-grid {
+  display: none;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+  justify-items: start; /* Left-align cards within grid cells */
+}
+
+.area-grid.active-grid {
+  display: grid;
+}
+
+/* ==========================================================================
+   LOCATION CARDS
+   ========================================================================== */
+
+.area-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* Left-align content inside card */
+  text-decoration: none;
+  color: inherit;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.area-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+}
+
+.area-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.area-name {
+  display: block;
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+/* ==========================================================================
+   LOADING
+   ========================================================================== */
+
+.cfs-loading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  color: #999;
+  font-size: 0.9rem;
+  padding: 20px 0;
+}
+
+.cfs-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #e6a020;
+  border-radius: 50%;
+  animation: cfs-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes cfs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================================================
+   NO RESULTS
+   ========================================================================== */
+
+.cfs-no-results {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #ccc;
+  text-align: left;
+}
+
+/* ==========================================================================
+   OWL NAV & DOTS
+   ========================================================================== */
+
+.worklocation-slider .owl-nav {
+  text-align: left; /* Prevent theme centering nav buttons */
+  margin-top: 10px;
+}
+
+.worklocation-slider .owl-nav button.owl-prev,
+.worklocation-slider .owl-nav button.owl-next {
+  background: rgba(230, 160, 32, 0.8) !important;
+  color: #fff !important;
+  border-radius: 50% !important;
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  font-size: 1.2rem !important;
+  transition: background 0.2s ease;
+}
+
+.worklocation-slider .owl-nav button:hover {
+  background: #e6a020 !important;
+}
+
+.worklocation-slider .owl-dots {
+  text-align: left;
+  margin-top: 10px;
+}
+
+.worklocation-slider .owl-dots .owl-dot span {
+  background: rgba(230, 160, 32, 0.4) !important;
+}
+
+.worklocation-slider .owl-dots .owl-dot.active span {
+  background: #e6a020 !important;
+}

@@ -1,0 +1,296 @@
+/* ==========================================================================
+   Service Details Meta Box — Admin Styles
+   File: assets/css/admin.css
+   ========================================================================== */
+
+/* ── Reset scoped to our wrapper ── */
+#csm-wrap,
+#csm-wrap *,
+#csm-wrap *::before,
+#csm-wrap *::after {
+	box-sizing: border-box;
+}
+
+#csm-wrap {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, sans-serif;
+	font-size: 13px;
+	color: #1d2327;
+	padding: 4px 0 8px;
+}
+
+/* ==========================================================================
+   SELECTOR ROWS (top control bars)
+   ========================================================================== */
+
+.csm-selector-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 16px;
+	background: #f0f6fc;
+	border: 1px solid #c5d9ed;
+	border-radius: 6px;
+	padding: 14px 18px;
+	margin-bottom: 16px;
+}
+
+/* Service row — full-width single selector */
+.csm-selector-row.csm-service-row {
+	background: #eaf3fb;
+	border-color: #aecde8;
+}
+
+/* Each label+select pair */
+.csm-selector-group {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex: 1;
+	min-width: 220px;
+}
+
+.csm-full-width {
+	width: 100%;
+	flex: 1 1 100%;
+}
+
+.csm-selector-group label {
+	font-weight: 600;
+	font-size: 12px;
+	color: #1d2327;
+	white-space: nowrap;
+	min-width: fit-content;
+}
+
+.csm-selector-group select {
+	flex: 1;
+	height: 36px;
+	border-radius: 4px;
+	border: 1px solid #8c8f94;
+	padding: 0 10px;
+	font-size: 13px;
+	background: #fff;
+	color: #1d2327;
+	max-width: 400px;
+	cursor: pointer;
+	transition: border-color .15s;
+}
+
+.csm-selector-group select:focus {
+	border-color: #2271b1;
+	outline: none;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+.csm-selector-group select:disabled {
+	background: #f6f7f7;
+	color: #8c8f94;
+	cursor: not-allowed;
+}
+
+/* SCF badge */
+.csm-scf-badge {
+	margin-left: auto;
+	background: #0073aa;
+	color: #fff;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: .6px;
+	text-transform: uppercase;
+	padding: 3px 9px;
+	border-radius: 3px;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+/* Loading spinner text */
+#csm-loading {
+	font-size: 12px;
+	color: #2271b1;
+	display: none;
+	align-self: center;
+	white-space: nowrap;
+}
+
+/* ==========================================================================
+   SECTION LABELS
+   ========================================================================== */
+
+.csm-section-label {
+	font-size: 11px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .7px;
+	color: #2271b1;
+	border-bottom: 2px solid #2271b1;
+	padding-bottom: 5px;
+	margin: 0 0 14px;
+}
+
+/* ==========================================================================
+   FIELD GRIDS
+   ========================================================================== */
+
+/* 3-column grid — textarea fields */
+.csm-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 12px;
+	margin-bottom: 20px;
+}
+
+/* 3-column grid — single-line fields */
+.csm-grid-new {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+/* Fallback: 2 cols on medium, 1 col narrow */
+@media (max-width: 1100px) {
+	.csm-grid,
+	.csm-grid-new {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+@media (max-width: 782px) {
+	.csm-grid,
+	.csm-grid-new {
+		grid-template-columns: 1fr;
+	}
+
+	.csm-selector-group {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+
+	.csm-selector-group select {
+		max-width: 100%;
+		width: 100%;
+	}
+}
+
+/* ==========================================================================
+   CARDS
+   ========================================================================== */
+
+.csm-card {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 14px 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.csm-card-title {
+	font-size: 10px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: .6px;
+	color: #50575e;
+	margin: 0;
+	line-height: 1.4;
+}
+
+/* ==========================================================================
+   INPUTS & TEXTAREAS INSIDE CARDS
+   ========================================================================== */
+
+.csm-card textarea,
+.csm-card input[type="text"],
+.csm-card input[type="url"] {
+	width: 100%;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 8px 10px;
+	font-size: 13px;
+	font-family: inherit;
+	color: #1d2327;
+	background: #f6f7f7;
+	transition: background .2s, border-color .2s, box-shadow .2s;
+	margin: 0;
+}
+
+.csm-card textarea {
+	resize: vertical;
+	min-height: 80px;
+	line-height: 1.55;
+}
+
+.csm-card input[type="text"],
+.csm-card input[type="url"] {
+	height: 36px;
+}
+
+.csm-card textarea:focus,
+.csm-card input[type="text"]:focus,
+.csm-card input[type="url"]:focus {
+	background: #fff;
+	border-color: #2271b1;
+	outline: none;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+/* ==========================================================================
+   LIVE PREVIEWS (map + video)
+   ========================================================================== */
+
+#csm-video-preview,
+#csm-map-preview {
+	display: none;
+	margin-top: 2px;
+	border-radius: 4px;
+	overflow: hidden;
+	background: #000;
+}
+
+#csm-video-preview iframe {
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	border: none;
+	display: block;
+}
+
+#csm-map-preview iframe {
+	width: 100%;
+	height: 180px;
+	border: none;
+	display: block;
+}
+
+/* ==========================================================================
+   FLASH ANIMATION — fires when service data populates a field
+   ========================================================================== */
+
+@keyframes csm-flash {
+	0%   { background: #d7f0d7; border-color: #56b356; }
+	80%  { background: #edf7ed; border-color: #b3d8b3; }
+	100% { background: #f6f7f7; border-color: #dcdcde; }
+}
+
+.csm-populated {
+	animation: csm-flash 1.4s ease forwards;
+}
+
+/* ==========================================================================
+   FOOTER NOTE
+   ========================================================================== */
+
+.csm-note {
+	font-size: 11px;
+	color: #787c82;
+	margin: 14px 0 0;
+	padding: 10px 14px;
+	background: #fafafa;
+	border: 1px solid #e5e5e5;
+	border-radius: 4px;
+	line-height: 1.7;
+}
+
+.csm-note strong {
+	color: #1d2327;
+}
