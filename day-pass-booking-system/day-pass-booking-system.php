@@ -574,23 +574,27 @@ if ( isset( $_GET['location'] ) ) {
     
     ob_start();
     ?>
-    <!-- CRITICAL: Wrapper with unique class and data attribute for instance scoping -->
+    <!-- CRITICAL: Wrapper with unique class and data attribute for instance scoping.
+         Every class below is dpbs-prefixed and unique to this plugin. Nothing here
+         shares a selector with the Schedule Forms (cwf-*) plugin, so neither
+         plugin's CSS cascade nor delegated JS click handlers can touch this markup,
+         even when both plugins are enqueued on the same page. -->
    <div class="dpbs-booking-instance" data-instance-id="<?php echo $iid; ?>" 
      data-pre-service="<?php echo esc_attr($atts['service_id']); ?>"
      data-pre-city="<?php echo esc_attr($atts['city_id']); ?>"
      data-pre-location="<?php echo esc_attr($atts['location_id']); ?>">
-        <div class="cwf-modal-overlay is-open" style="position:relative; background:transparent; padding:0; display:block;">
-            <div class="cwf-modal" style="max-width: 100%; box-shadow:none; border-radius: 0;">
-                <h2 class="cwf-form-heading">Book a Day Pass!</h2>
-                
-                <div style="margin-bottom: 24px; font-size: 18px; font-weight: 600; color: #1f1f1f;">
+        <div class="dpbs-form-wrap">
+            <div class="dpbs-form-panel">
+                <h2 class="dpbs-form-heading">Book a Day Pass!</h2>
+
+                <div class="dpbs-price-line">
                     Price: ₹<span id="<?php echo $iid; ?>-price-display">0.00</span> / Seat
                 </div>
 
-                <form id="<?php echo $iid; ?>-booking-form" class="cwf-form-grid dpbs-booking-form" data-instance="<?php echo $iid; ?>" novalidate>
-                    <div class="cwf-field">
+                <form id="<?php echo $iid; ?>-booking-form" class="dpbs-booking-form dpbs-form-grid" data-instance="<?php echo $iid; ?>" novalidate>
+                    <div class="dpbs-field">
                         <label>Service</label>
-                        <div class="cwf-select-wrap">
+                        <div class="dpbs-select-wrap">
                             <select name="service" id="<?php echo $iid; ?>-service" class="dpbs-service" required>
                                 <option value="">Select Service</option>
                                 <?php foreach ( $services as $service ) : ?>
@@ -601,9 +605,9 @@ if ( isset( $_GET['location'] ) ) {
                             </select>
                         </div>
                     </div>
-                    <div class="cwf-field">
+                    <div class="dpbs-field">
                         <label>City</label>
-                        <div class="cwf-select-wrap">
+                        <div class="dpbs-select-wrap">
                             <select name="city" id="<?php echo $iid; ?>-city" class="dpbs-city" required>
                                 <option value="">Select City</option>
                                 <?php foreach ( $cities as $city ) : ?>
@@ -614,70 +618,70 @@ if ( isset( $_GET['location'] ) ) {
                             </select>
                         </div>
                     </div>
-                    <div class="cwf-field">
+                    <div class="dpbs-field">
                         <label>Location</label>
-                        <div class="cwf-select-wrap">
+                        <div class="dpbs-select-wrap">
                             <select name="location" id="<?php echo $iid; ?>-location" class="dpbs-location" required>
                                 <option value="">Select Location</option>
                             </select>
                         </div>
                     </div>
-                    <div class="cwf-field">
+                    <div class="dpbs-field">
                         <label>Company (Optional)</label>
                         <input type="text" name="company" class="dpbs-company" />
                     </div>
-                    <div class="cwf-field">
+                    <div class="dpbs-field">
                         <label>Full Name</label>
                         <input type="text" name="full_name" class="dpbs-fullname" required />
                     </div>
-                    <div class="cwf-field">
+                    <div class="dpbs-field">
                         <label>Phone Number</label>
                         <input type="tel" name="phone" class="dpbs-phone" required placeholder="10-digit Indian number" />
-                        <small class="cwf-field-hint">e.g. 9876543210</small>
+                        <small class="dpbs-field-hint">e.g. 9876543210</small>
                     </div>
-                    <div class="cwf-field">
+                    <div class="dpbs-field">
                         <label>Email</label>
                         <input type="email" name="email" class="dpbs-email" required placeholder="you@example.com" />
                     </div>
-                    <div class="cwf-field">
+                    <div class="dpbs-field">
                         <label>No. of Seats</label>
-                        <div class="cwf-select-wrap">
+                        <div class="dpbs-select-wrap">
                             <select name="seats" id="<?php echo $iid; ?>-seats" class="dpbs-seats" required>
                                 <?php for ($i = 1; $i <= 50; $i++): ?>
                                     <option value="<?php echo $i; ?>" <?php selected($i, 1); ?>><?php echo $i; ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
-                        <small id="<?php echo $iid; ?>-seats-info" class="dpbs-seats-info" style="color:#666; margin-top:5px;"></small>
+                        <small id="<?php echo $iid; ?>-seats-info" class="dpbs-seats-info"></small>
                     </div>
                     
-                    <div class="cwf-field" style="grid-column: 1 / -1;">
+                    <div class="dpbs-field dpbs-field-full">
                         <label>Date</label>
-                        <div class="cwf-date-field dpbs-date-field">
+                        <div class="dpbs-date-field">
                             <input type="text" name="date" id="<?php echo $iid; ?>-date" class="dpbs-date" required readonly placeholder="Select available date" />
-                            <div class="cwf-date-icon"><span class="dashicons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
+                            <div class="dpbs-date-icon"><span class="dashicons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
  </span></div>
-                            <!-- Calendar popover - uses FIXED positioning to avoid clipping -->
-                            <div class="cwf-calendar-popover dpbs-calendar-popover" id="<?php echo $iid; ?>-calendar-popover" style="position: fixed; z-index: 1000000;">
-                                <div class="cwf-cal-header">
-                                    <button type="button" class="cwf-cal-nav-btn dpbs-cal-nav" data-dir="prev">&laquo;</button>
-                                    <span class="cwf-cal-title dpbs-cal-title"></span>
-                                    <button type="button" class="cwf-cal-nav-btn dpbs-cal-nav" data-dir="next">&raquo;</button>
+                            <!-- Calendar popover - JS moves this to <body> and positions it with getBoundingClientRect(), CSS just handles show/hide + styling -->
+                            <div class="dpbs-calendar-popover" id="<?php echo $iid; ?>-calendar-popover">
+                                <div class="dpbs-cal-header">
+                                    <button type="button" class="dpbs-cal-nav-btn" data-dir="prev">&laquo;</button>
+                                    <span class="dpbs-cal-title"></span>
+                                    <button type="button" class="dpbs-cal-nav-btn" data-dir="next">&raquo;</button>
                                 </div>
-                                <div class="cwf-cal-grid">
-                                    <div class="cwf-cal-dow">Su</div><div class="cwf-cal-dow">Mo</div>
-                                    <div class="cwf-cal-dow">Tu</div><div class="cwf-cal-dow">We</div>
-                                    <div class="cwf-cal-dow">Th</div><div class="cwf-cal-dow">Fr</div>
-                                    <div class="cwf-cal-dow is-weekend">Sa</div>
+                                <div class="dpbs-cal-grid dpbs-cal-dow-row">
+                                    <div class="dpbs-cal-dow">Su</div><div class="dpbs-cal-dow">Mo</div>
+                                    <div class="dpbs-cal-dow">Tu</div><div class="dpbs-cal-dow">We</div>
+                                    <div class="dpbs-cal-dow">Th</div><div class="dpbs-cal-dow">Fr</div>
+                                    <div class="dpbs-cal-dow is-weekend">Sa</div>
                                 </div>
-                                <div class="cwf-cal-grid dpbs-cal-days" id="<?php echo $iid; ?>-cal-days"></div>
+                                <div class="dpbs-cal-grid dpbs-cal-days" id="<?php echo $iid; ?>-cal-days"></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="cwf-form-footer" style="grid-column: 1 / -1;">
-                        <div class="cwf-form-message dpbs-form-message" id="<?php echo $iid; ?>-form-message"></div>
-                        <button type="submit" class="cwf-submit-btn dpbs-submit-btn jd-bookaday-button">
+                    <div class="dpbs-form-footer dpbs-field-full">
+                        <div class="dpbs-form-message" id="<?php echo $iid; ?>-form-message"></div>
+                        <button type="submit" class="dpbs-submit-btn jd-bookaday-button">
                            Book Now <span class="dashicons dashicons-arrow-right-alt2"></span>
                         </button>
                     </div>

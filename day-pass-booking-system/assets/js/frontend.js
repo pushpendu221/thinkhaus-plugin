@@ -34,7 +34,7 @@
       calPopover: container.find(".dpbs-calendar-popover"),
       calTitle: container.find(".dpbs-cal-title"),
       calDays: container.find(".dpbs-cal-days"),
-      calNav: container.find(".dpbs-cal-nav"),
+      calNav: container.find(".dpbs-cal-nav-btn"),
       priceDisplay: container.find('[id$="-price-display"]'),
       formMessage: container.find(".dpbs-form-message"),
       submitBtn: container.find(".dpbs-submit-btn"),
@@ -120,7 +120,7 @@
       });
 
       // Calendar navigation (popover is now in body, so delegate from it)
-      this.els.calPopover.on("click", ".dpbs-cal-nav", function (e) {
+      this.els.calPopover.on("click", ".dpbs-cal-nav-btn", function (e) {
         e.preventDefault();
         e.stopPropagation();
         var dir = $(this).data("dir");
@@ -614,7 +614,7 @@
 
       var html = "";
       for (var i = 0; i < firstDay; i++) {
-        html += '<div class="cwf-cal-day is-empty"></div>';
+        html += '<div class="dpbs-cal-day is-empty"></div>';
       }
 
       for (var d = 1; d <= daysInMonth; d++) {
@@ -628,7 +628,7 @@
           status: "available",
           seats: 0,
         };
-        var classes = "cwf-cal-day dpbs-cal-day";
+        var classes = "dpbs-cal-day";
         var dotHtml = "";
         var dayOfWeek = new Date(year, month, d).getDay();
 
@@ -636,10 +636,10 @@
         if (dayData.status === "past") classes += " is-disabled";
         if (dayData.status === "full") {
           classes += " is-disabled";
-          dotHtml = '<span class="cwf-dot cwf-dot-full"></span>';
+          dotHtml = '<span class="dpbs-dot dpbs-dot-full"></span>';
         }
         if (dayData.status === "limited") {
-          dotHtml = '<span class="cwf-dot cwf-dot-limited"></span>';
+          dotHtml = '<span class="dpbs-dot dpbs-dot-limited"></span>';
         }
         if (dateStr === this.selectedDate) classes += " is-selected";
 
