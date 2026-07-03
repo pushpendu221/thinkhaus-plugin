@@ -251,59 +251,70 @@ function cfs_render_shortcode( array $atts ): string {
             No locations available for "<strong><?php echo esc_html( $service['title'] ); ?></strong>".
         </div>
 
+        <!-- ── LOADING (for AJAX dropdown changes) ─────────────────────── -->
         <div class="cfs-loading" id="<?php echo esc_attr( $uid ); ?>-loading" style="display:none;">
             <span class="cfs-spinner"></span> Loading…
         </div>
 
         <?php if ( $has_data ) : ?>
 
-            <!-- ── CITY CAROUSEL ───────────────────────────────────────── -->
-            <div class="owl-carousel owl-theme worklocation-slider"
-                id="<?php echo esc_attr( $uid ); ?>-carousel">
+            <!-- ── INITIAL PAGE LOAD LOADER (shown until carousel inits) ── -->
+            <div class="cfs-loading cfs-init-loader" id="<?php echo esc_attr( $uid ); ?>-init-loader">
+                <span class="cfs-spinner"></span> Loading…
+            </div>
 
-                <?php foreach ( $cities as $city ) : ?>
-                    <div class="item">
-                        <div class="worklocation-card">
-                            <a href="javascript:void(0)"
-                                class="city-card"
-                                data-city="<?php echo esc_attr( $city['slug'] ); ?>">
-                                <?php if ( $city['image'] ) : ?>
-                                    <img src="<?php echo esc_url( $city['image'] ); ?>"
-                                        alt="<?php echo esc_attr( $city['title'] ); ?>">
-                                <?php endif; ?>
-                            </a>
+            <!-- ── CITIES WRAPPER: hidden until JS is ready ────────────── -->
+            <div class="cfs-cities-wrap" id="<?php echo esc_attr( $uid ); ?>-cities-wrap">
+
+                <!-- ── CITY CAROUSEL ───────────────────────────────────── -->
+                <div class="owl-carousel owl-theme worklocation-slider"
+                    id="<?php echo esc_attr( $uid ); ?>-carousel">
+
+                    <?php foreach ( $cities as $city ) : ?>
+                        <div class="item">
+                            <div class="worklocation-card">
+                                <a href="javascript:void(0)"
+                                    class="city-card"
+                                    data-city="<?php echo esc_attr( $city['slug'] ); ?>">
+                                    <?php if ( $city['image'] ) : ?>
+                                        <img src="<?php echo esc_url( $city['image'] ); ?>"
+                                            alt="<?php echo esc_attr( $city['title'] ); ?>">
+                                    <?php endif; ?>
+                                </a>
+                            </div>
                         </div>
-                    </div>
-                <?php endforeach; ?>
+                    <?php endforeach; ?>
 
-            </div>
+                </div>
 
-            <!-- ── HINT (shown until a city is clicked) ────────────────── -->
-            <p class="cfs-city-hint" style="display:none;">
-                Select a city above to view available locations.
-            </p>
+                <!-- ── HINT (shown until a city is clicked) ────────────── -->
+                <p class="cfs-city-hint" style="display:none;">
+                    Select a city above to view available locations.
+                </p>
 
-            <!-- ── LOCATION GRIDS (hidden until city clicked) ─────────── -->
-            <div class="cityfilter-areas" id="<?php echo esc_attr( $uid ); ?>-areas">
+                <!-- ── LOCATION GRIDS (hidden until city clicked) ─────── -->
+                <div class="cityfilter-areas" id="<?php echo esc_attr( $uid ); ?>-areas">
 
-                <?php foreach ( $cities as $city ) : ?>
-                    <div class="area-grid" id="<?php echo esc_attr( $city['slug'] ); ?>">
+                    <?php foreach ( $cities as $city ) : ?>
+                        <div class="area-grid" id="<?php echo esc_attr( $city['slug'] ); ?>">
 
-                        <?php foreach ( $city['locations'] as $loc ) : ?>
-                            <a href="<?php echo esc_url( cfs_build_location_url( $service['id'], $loc['slug'] ) ); ?>"
-                                class="area-card" title="<?php echo esc_attr( $loc['title'] ); ?>">
-                                <?php if ( $loc['image'] ) : ?>
-                                    <img src="<?php echo esc_url( $loc['image'] ); ?>"
-                                        alt="<?php echo esc_attr( $loc['title'] ); ?>" loading="lazy">
-                                <?php endif; ?>
-                                <span class="area-name"><?php echo esc_html( $loc['title'] ); ?></span>
-                            </a>
-                        <?php endforeach; ?>
+                            <?php foreach ( $city['locations'] as $loc ) : ?>
+                                <a href="<?php echo esc_url( cfs_build_location_url( $service['id'], $loc['slug'] ) ); ?>"
+                                    class="area-card" title="<?php echo esc_attr( $loc['title'] ); ?>">
+                                    <?php if ( $loc['image'] ) : ?>
+                                        <img src="<?php echo esc_url( $loc['image'] ); ?>"
+                                            alt="<?php echo esc_attr( $loc['title'] ); ?>" loading="lazy">
+                                    <?php endif; ?>
+                                    <span class="area-name"><?php echo esc_html( $loc['title'] ); ?></span>
+                                </a>
+                            <?php endforeach; ?>
 
-                    </div>
-                <?php endforeach; ?>
+                        </div>
+                    <?php endforeach; ?>
 
-            </div>
+                </div>
+
+            </div><!-- .cfs-cities-wrap -->
 
         <?php endif; ?>
 
@@ -311,7 +322,6 @@ function cfs_render_shortcode( array $atts ): string {
     <?php
     return ob_get_clean();
 }
-
 /* ==========================================================================
    7. REST ENDPOINT
    ========================================================================== */

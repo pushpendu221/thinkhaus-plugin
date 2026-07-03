@@ -1,27 +1,26 @@
 /**
  * City Location Filter — Front-End Logic
- * v1.0.6
- *  - Removed city-name span (stamp image already has the name baked in)
- *  - Dynamic item count: caps visible items at actual city count (fixes 2-city stretch)
- *  - Destroys theme-initialised Owl instances before our own init (fixes loop duplication)
- *  - 400ms init delay to beat Elementor + theme Owl auto-init
+ * v1.0.7
+ *  - Fixed FOUC: .cfs-cities-wrap is hidden by CSS, revealed after carousel init
+ *  - Added .cfs-init-loader handling for initial page load
+ *  - Dynamic item count: caps visible items at actual city count
+ *  - Destroys theme-initialised Owl instances before our own init
  */
 (function ($) {
   "use strict";
 
   /* ======================================================================
-       CAROUSEL DEFAULTS — items set dynamically per initCarousel call
+       CAROUSEL DEFAULTS
        ====================================================================== */
   function getCarouselOptions(itemCount) {
-    // Never show more slots than we have cities — prevents stretching/looping artefacts
     var max1 = Math.min(itemCount, 1);
     var max2 = Math.min(itemCount, 2);
     var max4 = Math.min(itemCount, 4);
 
     return {
-      loop: false, // NEVER loop — prevents ghost duplicate cards
+      loop: false,
       margin: 24,
-      nav: itemCount > max4, // only show nav arrows if there are more cities than visible
+      nav: itemCount > max4,
       dots: itemCount > 1,
       autoplay: false,
       responsive: {
@@ -34,8 +33,6 @@
 
   /* ======================================================================
        1. INIT CAROUSEL
-       Fully tears down any existing Owl instance (including theme-initiated
-       ones) before re-initialising with our settings.
        ====================================================================== */
   function initCarousel($el, itemCount, delay) {
     if (typeof $.fn.owlCarousel === "undefined") return;
@@ -44,7 +41,7 @@
     itemCount = itemCount || $el.children(".item").length;
 
     function doInit() {
-      // Hard-destroy any Owl instance on this element (ours OR theme's)
+      // Destroy any existing Owl instance
       if ($el.hasClass("owl-loaded")) {
         try {
           $el.trigger("destroy.owl.carousel");
@@ -52,13 +49,13 @@
         $el.removeClass(
           "owl-loaded owl-drag owl-hidden owl-grab owl-rtl owl-refresh owl-text-select-on",
         );
-        // Remove Owl-injected wrappers but keep our .item elements
         var $items = $el.find(".item").detach();
         $el.empty().append($items);
       }
 
       $el.owlCarousel(getCarouselOptions(itemCount));
-      // Trigger resize so Owl re-measures after any late layout paint
+
+      // Trigger resize so Owl re-measures
       setTimeout(function () {
         $(window).trigger("resize.owl.carousel");
       }, 50);
@@ -72,7 +69,23 @@
   }
 
   /* ======================================================================
-       2. CITY CARD CLICK — show matching area-grid, hide others
+       2. REVEAL CITIES WRAPPER — called after carousel is ready
+       ====================================================================== */
+  function revealCities($wrapper) {
+    var $citiesWrap = $wrapper.find(".cfs-cities-wrap");
+    var $initLoader = $wrapper.find(".cfs-init-loader");
+
+    // Hide the initial loader first
+    $initLoader.hide();
+
+    // Small delay to ensure carousel has painted, then reveal
+    setTimeout(function () {
+      $citiesWrap.addClass("is-ready");
+    }, 50);
+  }
+
+  /* ======================================================================
+       3. CITY CARD CLICK
        ====================================================================== */
   $(document).on("click", ".city-card", function (e) {
     e.preventDefault();
@@ -95,7 +108,7 @@
   });
 
   /* ======================================================================
-       3. SERVICE DROPDOWN CHANGE — fetch filtered data via REST
+       4. SERVICE DROPDOWN CHANGE — fetch filtered data via REST
        ====================================================================== */
   $(document).on("change", ".cfs-service-select", function () {
     var $select = $(this);
@@ -105,15 +118,18 @@
     var $carousel = $wrapper.find(".worklocation-slider");
     var $areas = $wrapper.find(".cityfilter-areas");
     var $empty = $wrapper.find(".cfs-no-results");
-    var $loading = $wrapper.find(".cfs-loading");
+    var $loading = $wrapper.find(".cfs-loading:not(.cfs-init-loader)");
     var $hint = $wrapper.find(".cfs-city-hint");
     var $citiesWrap = $wrapper.find(".cfs-cities-wrap");
+    var $initLoader = $wrapper.find(".cfs-init-loader");
 
     if (!serviceId) {
       $wrapper.attr("data-service-id", "0").attr("data-service-slug", "");
       $empty.hide();
       $loading.hide();
+      $initLoader.hide();
       $hint.hide();
+      $citiesWrap.removeClass("is-ready").hide();
       if ($carousel.hasClass("owl-loaded")) {
         try {
           $carousel.trigger("destroy.owl.carousel");
@@ -130,9 +146,11 @@
 
     $empty.hide();
     $hint.hide();
+    $initLoader.hide();
     $loading.show();
-    // Fade out cities section during fetch to prevent layout flicker
-    $citiesWrap.css({ opacity: 0, transition: "opacity 0.15s ease" });
+
+    // Hide cities wrapper during fetch
+    $citiesWrap.removeClass("is-ready");
 
     $.ajax({
       url: cfsConfig.restBase,
@@ -165,15 +183,18 @@
             )
             .show();
           $loading.hide();
+          $citiesWrap.removeClass("is-ready").hide();
           return;
         }
+
+        // Make sure the wrapper is visible but still at opacity 0
+        $citiesWrap.show();
 
         var carouselHTML = "";
         var areasHTML = "";
         var cityCount = response.cities.length;
 
         $.each(response.cities, function (idx, city) {
-          // No city-name span — the stamp image already contains the city name
           var imgTag = city.image
             ? '<img src="' + city.image + '" alt="' + city.title + '">'
             : "";
@@ -218,13 +239,14 @@
         $carousel.html(carouselHTML);
         $areas.html(areasHTML);
 
-        // 150ms delay: AJAX path has no theme Owl race, just needs paint
+        // Init carousel then reveal
         initCarousel($carousel, cityCount, 150);
         $loading.hide();
         $hint.show();
-        // Fade back in after carousel is initialised
+
+        // Reveal after a short delay for paint
         setTimeout(function () {
-          $citiesWrap.css({ opacity: 1 });
+          $citiesWrap.addClass("is-ready");
         }, 200);
 
         if (window.history.replaceState) {
@@ -238,14 +260,14 @@
       },
       error: function () {
         $loading.hide();
+        $citiesWrap.removeClass("is-ready").hide();
         $empty.text("Error loading locations. Please try again.").show();
       },
     });
   });
 
   /* ======================================================================
-       4. DOM READY — init server-side-rendered carousels
-       400ms delay beats Elementor's own Owl auto-init which runs at ~300ms
+       5. DOM READY — init server-side-rendered carousels
        ====================================================================== */
   $(document).ready(function () {
     $(".city-container[data-service-id]").each(function () {
@@ -257,9 +279,21 @@
         var itemCount = $carousel.children(".item").length;
 
         if (itemCount > 0) {
+          // Init carousel with delay to beat theme's Owl auto-init
           initCarousel($carousel, itemCount, 400);
-          $this.find(".cfs-city-hint").show();
+
+          // Reveal everything after carousel is ready (400ms init + 100ms buffer)
+          setTimeout(function () {
+            revealCities($this);
+            $this.find(".cfs-city-hint").show();
+          }, 550);
+        } else {
+          // No items — hide loader, show nothing
+          $this.find(".cfs-init-loader").hide();
         }
+      } else {
+        // No service selected — hide loader
+        $this.find(".cfs-init-loader").hide();
       }
     });
   });

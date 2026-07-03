@@ -1,10 +1,8 @@
 /**
  * City Location Filter — Stylesheet
- * v1.0.7
- *  - Left-aligned throughout (no text-align:center anywhere)
- *  - Dropdown and cities in separate divs
- *  - min-height on .cfs-cities-wrap prevents height-jump flicker between counts
- *  - Opacity fade on swap for smooth transition
+ * v1.0.8
+ *  - Added opacity:0 to .cfs-cities-wrap to prevent FOUC
+ *  - Added .cfs-init-loader styles
  */
 
 /* ==========================================================================
@@ -12,11 +10,11 @@
    ========================================================================== */
 
 .city-container {
-  text-align: left; /* Ensure nothing from theme centres our content */
+  text-align: left;
 }
 
 /* ==========================================================================
-   DROPDOWN SECTION — sits above, fully separate from carousel
+   DROPDOWN SECTION
    ========================================================================== */
 
 .cfs-dropdown-wrap {
@@ -45,13 +43,21 @@
 }
 
 /* ==========================================================================
-   CITIES SECTION — carousel + hint + areas all inside here
-   min-height stops the section collapsing between item counts (kills flicker)
+   CITIES WRAPPER — HIDDEN BY DEFAULT, SHOWN BY JS AFTER CAROUSEL INIT
+   This prevents the flash of raw HTML before Owl Carousel transforms it.
    ========================================================================== */
 
 .cfs-cities-wrap {
-  min-height: 260px; /* Tall enough for stamp cards; prevents layout jump */
-  transition: opacity 0.15s ease;
+  min-height: 260px;
+  transition: opacity 0.3s ease;
+  opacity: 0;
+  pointer-events: none; /* Prevents clicks while hidden */
+  position: relative;
+}
+
+.cfs-cities-wrap.is-ready {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* ==========================================================================
@@ -74,7 +80,6 @@
   float: left;
 }
 
-/* Owl centres items by default via text-align on the stage — override */
 .worklocation-slider .owl-stage {
   display: flex;
   align-items: flex-start;
@@ -103,18 +108,9 @@
 .city-card img {
   display: block;
   width: 100%;
-  height: auto; /* Preserve natural stamp aspect ratio */
+  height: auto;
   border-radius: 2px;
 }
-
-/* .city-card.active {
-  border-color: #e6a020;
-  box-shadow: 0 0 0 3px rgba(230, 160, 32, 0.3);
-}
-
-.city-card:hover:not(.active) {
-  border-color: rgba(230, 160, 32, 0.5);
-} */
 
 /* ==========================================================================
    HINT
@@ -146,7 +142,7 @@
   display: none;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 20px;
-  justify-items: start; /* Left-align cards within grid cells */
+  justify-items: start;
 }
 
 .area-grid.active-grid {
@@ -160,7 +156,7 @@
 .area-card {
   display: flex;
   flex-direction: column;
-  align-items: flex-start; /* Left-align content inside card */
+  align-items: flex-start;
   text-decoration: none;
   color: inherit;
   border-radius: 8px;
@@ -192,7 +188,7 @@
 }
 
 /* ==========================================================================
-   LOADING
+   LOADING — both AJAX and initial page load
    ========================================================================== */
 
 .cfs-loading {
@@ -203,6 +199,16 @@
   color: #999;
   font-size: 0.9rem;
   padding: 20px 0;
+}
+
+/* Initial page load loader */
+.cfs-init-loader {
+  min-height: 80px;
+  transition: opacity 0.2s ease;
+}
+
+.cfs-init-loader.is-hiding {
+  opacity: 0;
 }
 
 .cfs-spinner {
@@ -241,7 +247,7 @@
    ========================================================================== */
 
 .worklocation-slider .owl-nav {
-  text-align: left; /* Prevent theme centering nav buttons */
+  text-align: left;
   margin-top: 10px;
 }
 
