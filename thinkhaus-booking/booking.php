@@ -205,12 +205,241 @@ function hbs_enqueue_admin_assets( $hook ) {
     wp_localize_script( 'hbs-admin-js', 'hbs_admin_obj', array( 'ajax_url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce( 'hbs_admin_nonce' ) ));
 }
 
+/**
+ * CSV Export handler.
+ * Streams all bookings (current DB state, same columns as the listing table
+ * plus a few extra reference fields) as a downloadable CSV file.
+ * Hooked to admin-post.php so it can just be linked to — no changes to any
+ * existing AJAX handlers or frontend behaviour.
+ */
+add_action( 'admin_post_hbs_export_bookings_csv', 'hbs_export_bookings_csv' );
+function hbs_export_bookings_csv() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( esc_html__( 'You do not have permission to do this.', 'thinkhaus' ), 403 );
+    }
+    check_admin_referer( 'hbs_export_bookings_csv' );
+
+    global $wpdb;
+    $table    = $wpdb->prefix . 'hbs_bookings';
+    $bookings = $wpdb->get_results( "SELECT * FROM $table ORDER BY created_at DESC" );
+
+    nocache_headers();
+    header( 'Content-Type: text/csv; charset=utf-8' );
+    header( 'Content-Disposition: attachment; filename=thinkhaus-bookings-' . gmdate( 'Y-m-d-His' ) . '.csv' );
+
+    $out = fopen( 'php://output', 'w' );
+
+    // BOM so Excel opens UTF-8 (₹ symbol etc.) correctly.
+    fputs( $out, "\xEF\xBB\xBF" );
+
+    fputcsv( $out, array(
+        'ID', 'Customer', 'Email', 'Phone', 'Company', 'Service', 'Location',
+        'Date', 'Hours', 'Rooms', 'Amount', 'Razorpay Order ID',
+        'Razorpay Payment ID', 'Status', 'Created At',
+    ) );
+
+    foreach ( $bookings as $b ) {
+        fputcsv( $out, array(
+            $b->id,
+            $b->customer_name,
+            $b->customer_email,
+            $b->customer_phone,
+            $b->customer_company,
+            get_the_title( $b->service_id ),
+            get_the_title( $b->location_id ),
+            $b->booking_date,
+            $b->hours,
+            $b->rooms,
+            $b->total_amount,
+            $b->razorpay_order_id,
+            $b->razorpay_payment_id,
+            ucfirst( $b->status ),
+            $b->created_at,
+        ) );
+    }
+
+    fclose( $out );
+    exit;
+}
+
+/**
+ * Delete handler — used for BOTH the single row "Delete" link and the
+ * bulk-action form on the listing page. Redirects back to the listing
+ * page with a count of how many rows were removed.
+ */
+add_action( 'admin_post_hbs_delete_bookings', 'hbs_delete_bookings' );
+function hbs_delete_bookings() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( esc_html__( 'You do not have permission to do this.', 'thinkhaus' ), 403 );
+    }
+    check_admin_referer( 'hbs_bookings_bulk_action' );
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'hbs_bookings';
+
+    $ids = array();
+    if ( ! empty( $_REQUEST['booking_id'] ) ) {
+        // Single row delete link.
+        $ids[] = intval( $_REQUEST['booking_id'] );
+    } elseif ( ! empty( $_REQUEST['booking_ids'] ) && is_array( $_REQUEST['booking_ids'] ) ) {
+        // Bulk delete checkboxes.
+        $ids = array_map( 'intval', $_REQUEST['booking_ids'] );
+    }
+    $ids = array_values( array_unique( array_filter( $ids ) ) );
+
+    $deleted = 0;
+    if ( ! empty( $ids ) ) {
+        $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built above, values passed through prepare().
+        $deleted = (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $table WHERE id IN ($placeholders)", $ids ) );
+    }
+
+    $redirect = add_query_arg(
+        array(
+            'page'        => 'hbs-bookings',
+            'hbs_deleted' => $deleted,
+        ),
+        admin_url( 'admin.php' )
+    );
+    wp_safe_redirect( $redirect );
+    exit;
+}
+
 function hbs_bookings_page() {
+    if ( ! current_user_can( 'manage_options' ) ) return;
+
     global $wpdb; $table = $wpdb->prefix . 'hbs_bookings';
     $bookings = $wpdb->get_results("SELECT * FROM $table ORDER BY created_at DESC");
-    echo '<div class="wrap"><h2>ThinkHaus Bookings</h2><table class="widefat fixed striped"><thead><tr><th>Customer</th><th>Email</th><th>Phone</th><th>Service</th><th>Location</th><th>Date</th><th>Hours</th><th>Rooms</th><th>Amount</th><th>Payment ID</th><th>Status</th></tr></thead><tbody>';
-    foreach ( $bookings as $b ) { echo '<tr><td>' . esc_html($b->customer_name) . '</td><td>' . esc_html($b->customer_email) . '</td><td>' . esc_html($b->customer_phone) . '</td><td>' . get_the_title($b->service_id) . '</td><td>' . get_the_title($b->location_id) . '</td><td>' . esc_html($b->booking_date) . '</td><td>' . esc_html($b->hours) . '</td><td>' . esc_html($b->rooms) . '</td><td>₹' . esc_html($b->total_amount) . '</td><td>' . esc_html($b->razorpay_payment_id) . '</td><td>' . esc_html(ucfirst($b->status)) . '</td></tr>'; }
-    echo '</tbody></table></div>';
+
+    $export_url = wp_nonce_url( admin_url( 'admin-post.php?action=hbs_export_bookings_csv' ), 'hbs_export_bookings_csv' );
+    ?>
+    <div class="wrap">
+        <h2>ThinkHaus Bookings</h2>
+
+        <?php if ( isset( $_GET['hbs_deleted'] ) ) :
+            $deleted_count = intval( $_GET['hbs_deleted'] ); ?>
+            <div class="notice notice-success is-dismissible">
+                <p>
+                    <?php
+                    if ( $deleted_count > 0 ) {
+                        printf(
+                            /* translators: %d: number of bookings deleted */
+                            esc_html( _n( '%d booking deleted.', '%d bookings deleted.', $deleted_count, 'thinkhaus' ) ),
+                            $deleted_count
+                        );
+                    } else {
+                        esc_html_e( 'No bookings were deleted.', 'thinkhaus' );
+                    }
+                    ?>
+                </p>
+            </div>
+        <?php endif; ?>
+
+        <p style="margin: 15px 0;">
+            <a href="<?php echo esc_url( $export_url ); ?>" class="button button-secondary">
+                <span class="dashicons dashicons-download" style="vertical-align: text-bottom;"></span>
+                Export CSV
+            </a>
+        </p>
+
+        <?php if ( empty( $bookings ) ) : ?>
+            <p><?php esc_html_e( 'No bookings found.', 'thinkhaus' ); ?></p>
+        <?php else : ?>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="hbs-bookings-form">
+                <input type="hidden" name="action" value="hbs_delete_bookings" />
+                <?php wp_nonce_field( 'hbs_bookings_bulk_action' ); ?>
+
+                <div class="tablenav top">
+                    <div class="alignleft actions bulkactions">
+                        <select name="hbs_bulk_action" id="hbs-bulk-action-selector">
+                            <option value="-1">Bulk actions</option>
+                            <option value="delete">Delete</option>
+                        </select>
+                        <button type="submit" class="button action" id="hbs-bulk-apply">Apply</button>
+                    </div>
+                </div>
+
+                <table class="widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <td class="manage-column column-cb check-column">
+                                <input type="checkbox" id="hbs-select-all" />
+                            </td>
+                            <th>Customer</th><th>Email</th><th>Phone</th><th>Service</th><th>Location</th><th>Date</th><th>Hours</th><th>Rooms</th><th>Amount</th><th>Payment ID</th><th>Status</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ( $bookings as $b ) :
+                            $row_delete_url = wp_nonce_url(
+                                admin_url( 'admin-post.php?action=hbs_delete_bookings&booking_id=' . intval( $b->id ) ),
+                                'hbs_bookings_bulk_action'
+                            );
+                            ?>
+                            <tr>
+                                <th class="check-column">
+                                    <input type="checkbox" name="booking_ids[]" value="<?php echo esc_attr( $b->id ); ?>" class="hbs-row-checkbox" />
+                                </th>
+                                <td><?php echo esc_html( $b->customer_name ); ?></td>
+                                <td><?php echo esc_html( $b->customer_email ); ?></td>
+                                <td><?php echo esc_html( $b->customer_phone ); ?></td>
+                                <td><?php echo esc_html( get_the_title( $b->service_id ) ); ?></td>
+                                <td><?php echo esc_html( get_the_title( $b->location_id ) ); ?></td>
+                                <td><?php echo esc_html( $b->booking_date ); ?></td>
+                                <td><?php echo esc_html( $b->hours ); ?></td>
+                                <td><?php echo esc_html( $b->rooms ); ?></td>
+                                <td>₹<?php echo esc_html( $b->total_amount ); ?></td>
+                                <td><?php echo esc_html( $b->razorpay_payment_id ); ?></td>
+                                <td><?php echo esc_html( ucfirst( $b->status ) ); ?></td>
+                                <td>
+                                    <a href="<?php echo esc_url( $row_delete_url ); ?>"
+                                       class="hbs-row-delete-link"
+                                       style="color:#b32d2e;"
+                                       onclick="return confirm('Delete this booking? This cannot be undone.');">
+                                       Delete
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </form>
+
+            <script>
+            (function () {
+                var selectAll = document.getElementById('hbs-select-all');
+                var form = document.getElementById('hbs-bookings-form');
+                if ( selectAll && form ) {
+                    selectAll.addEventListener('change', function () {
+                        var boxes = form.querySelectorAll('.hbs-row-checkbox');
+                        for (var i = 0; i < boxes.length; i++) {
+                            boxes[i].checked = selectAll.checked;
+                        }
+                    });
+                }
+                if ( form ) {
+                    form.addEventListener('submit', function (e) {
+                        var action = document.getElementById('hbs-bulk-action-selector').value;
+                        var checked = form.querySelectorAll('.hbs-row-checkbox:checked');
+                        if ( action === '-1' ) {
+                            e.preventDefault();
+                            alert('Please choose a bulk action.');
+                            return false;
+                        }
+                        if ( checked.length === 0 ) {
+                            e.preventDefault();
+                            alert('Please select at least one booking.');
+                            return false;
+                        }
+                        if ( action === 'delete' ) {
+                            return confirm('Delete ' + checked.length + ' selected booking(s)? This cannot be undone.');
+                        }
+                    });
+                }
+            })();
+            </script>
+        <?php endif; ?>
+    </div>
+    <?php
 }
 
 /* ==========================================================================

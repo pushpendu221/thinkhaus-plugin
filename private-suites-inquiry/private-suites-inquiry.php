@@ -270,8 +270,9 @@ function psi_enqueue_admin_assets( $hook ) {
     wp_enqueue_style( 'psi-admin-css', PSI_PLUGIN_URL . 'assets/css/admin.css', array(), PSI_VERSION );
     wp_enqueue_script( 'psi-admin-js', PSI_PLUGIN_URL . 'assets/js/admin.js', array('jquery'), PSI_VERSION, true );
     wp_localize_script( 'psi-admin-js', 'psi_admin_obj', array(
-        'ajax_url' => admin_url( 'admin-ajax.php' ),
-        'nonce'    => wp_create_nonce( 'psi_admin_nonce' ),
+        'ajax_url'     => admin_url( 'admin-ajax.php' ),
+        'nonce'        => wp_create_nonce( 'psi_admin_nonce' ),
+        'export_nonce' => wp_create_nonce( 'psi_export_csv' ),
     ));
 }
 
@@ -283,14 +284,6 @@ function psi_inquiries_list_page() {
     global $wpdb;
     $table = $wpdb->prefix . 'psi_inquiries';
 
-    if ( isset($_GET['action']) && isset($_GET['inquiry_id']) && isset($_GET['_wpnonce']) ) {
-        $action = sanitize_text_field($_GET['action']);
-        $id     = intval($_GET['inquiry_id']);
-        if ( wp_verify_nonce($_GET['_wpnonce'], 'psi_update_' . $id) && in_array($action, ['read','replied','new']) ) {
-            $wpdb->update( $table, array('status' => $action), array('id' => $id) );
-            echo '<div class="notice notice-success is-dismissible"><p>Status updated to <strong>' . esc_html(ucfirst($action)) . '</strong>.</p></div>';
-        }
-    }
     if ( isset($_GET['delete_id']) && isset($_GET['_wpnonce']) ) {
         $del_id = intval($_GET['delete_id']);
         if ( wp_verify_nonce($_GET['_wpnonce'], 'psi_delete_' . $del_id) ) {
@@ -304,41 +297,27 @@ function psi_inquiries_list_page() {
         if ( $bulk_action === 'delete' ) {
             foreach ( $bulk_ids as $bid ) $wpdb->delete( $table, array('id' => $bid) );
             echo '<div class="notice notice-success is-dismissible"><p>' . count($bulk_ids) . ' inquiry(s) deleted.</p></div>';
-        } elseif ( in_array($bulk_action, ['new','read','replied']) ) {
-            foreach ( $bulk_ids as $bid ) $wpdb->update( $table, array('status' => $bulk_action), array('id' => $bid) );
-            echo '<div class="notice notice-success is-dismissible"><p>' . count($bulk_ids) . ' inquiry(s) marked as <strong>' . esc_html(ucfirst($bulk_action)) . '</strong>.</p></div>';
         }
     }
 
-    $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : '';
-    $where = $status_filter ? $wpdb->prepare(" WHERE status = %s", $status_filter) : '';
-    $total = $wpdb->get_var("SELECT COUNT(*) FROM $table $where");
+    $total = $wpdb->get_var("SELECT COUNT(*) FROM $table");
     $per_page = 20;
     $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
     $offset = ($current_page - 1) * $per_page;
-    $inquiries = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table $where ORDER BY created_at DESC LIMIT %d OFFSET %d", $per_page, $offset));
-    $new_count = $wpdb->get_var("SELECT COUNT(*) FROM $table WHERE status = 'new'");
+    $inquiries = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table ORDER BY created_at DESC LIMIT %d OFFSET %d", $per_page, $offset));
     ?>
     <div class="hbs-admin-wrap">
         <div class="hbs-admin-header">
-            <h1>Suite Inquiries <?php if ($new_count > 0) : ?><span class="psi-new-badge"><?php echo $new_count; ?> new</span><?php endif; ?></h1>
+            <h1>Suite Inquiries</h1>
+            <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=psi_export_inquiries' ), 'psi_export_csv' ) ); ?>" class="button button-secondary" style="margin-left:auto;">Export CSV</a>
         </div>
 
-        <ul class="subsubsub">
-            <li><a href="<?php echo admin_url('admin.php?page=psi-inquiries'); ?>" class="<?php echo !$status_filter ? 'current' : ''; ?>">All <span class="count">(<?php echo $total; ?>)</span></a> |</li>
-            <li><a href="<?php echo admin_url('admin.php?page=psi-inquiries&status_filter=new'); ?>" class="<?php echo $status_filter==='new' ? 'current' : ''; ?>">New <span class="count">(<?php echo $wpdb->get_var("SELECT COUNT(*) FROM $table WHERE status='new'"); ?>)</span></a> |</li>
-            <li><a href="<?php echo admin_url('admin.php?page=psi-inquiries&status_filter=read'); ?>" class="<?php echo $status_filter==='read' ? 'current' : ''; ?>">Read <span class="count">(<?php echo $wpdb->get_var("SELECT COUNT(*) FROM $table WHERE status='read'"); ?>)</span></a> |</li>
-            <li><a href="<?php echo admin_url('admin.php?page=psi-inquiries&status_filter=replied'); ?>" class="<?php echo $status_filter==='replied' ? 'current' : ''; ?>">Replied <span class="count">(<?php echo $wpdb->get_var("SELECT COUNT(*) FROM $table WHERE status='replied'"); ?>)</span></a></li>
-        </ul>
-
-        <form method="post" style="margin-top:10px;">
+        <form method="post" style="margin-top:10px;" id="psi-inquiries-form">
             <div style="margin-bottom:8px;">
                 <select name="psi_bulk_action" style="vertical-align:middle;">
                     <option value="">Bulk Actions</option>
-                    <option value="new">Mark as New</option>
-                    <option value="read">Mark as Read</option>
-                    <option value="replied">Mark as Replied</option>
                     <option value="delete">Delete</option>
+                    <option value="export">Export Selected (CSV)</option>
                 </select>
                 <?php submit_button('Apply', 'secondary', 'psi_bulk_apply', false); ?>
             </div>
@@ -354,19 +333,18 @@ function psi_inquiries_list_page() {
                         <th>Seats</th>
                         <th>Manager</th>
                         <th>Est. Total</th>
-                        <th>Status</th>
                         <th>Submitted</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                 <?php if (empty($inquiries)) : ?>
-                    <tr><td colspan="12" style="text-align:center; padding:40px;">No inquiries found.</td></tr>
+                    <tr><td colspan="10" style="text-align:center; padding:40px;">No inquiries found.</td></tr>
                 <?php else : foreach ($inquiries as $inq) :
                     $days = (strtotime($inq->end_date) - strtotime($inq->start_date)) / 86400 + 1;
                     $months = max(1, ceil($days / 30));
                 ?>
-                    <tr class="<?php echo $inq->status === 'new' ? 'psi-row-new' : ''; ?>">
+                    <tr>
                         <td><input type="checkbox" name="psi_bulk_ids[]" value="<?php echo $inq->id; ?>" class="psi-bulk-check" /></td>
                         <td><strong><?php echo esc_html($inq->customer_name); ?></strong><?php if ($inq->customer_company) echo '<br><small style="color:#888;">' . esc_html($inq->customer_company) . '</small>'; ?></td>
                         <td><a href="mailto:<?php echo esc_attr($inq->customer_email); ?>"><?php echo esc_html($inq->customer_email); ?></a></td>
@@ -376,12 +354,10 @@ function psi_inquiries_list_page() {
                         <td><?php echo esc_html($inq->seats); ?></td>
                         <td><?php echo esc_html($inq->manager_seats); ?></td>
                         <td><strong style="color:#e8521e;">₹<?php echo number_format($inq->total_price, 0); ?></strong></td>
-                        <td><span class="psi-status-<?php echo $inq->status; ?>"><?php echo esc_html(ucfirst($inq->status)); ?></span></td>
                         <td style="white-space:nowrap; font-size:12px;"><?php echo date('M j, g:i A', strtotime($inq->created_at)); ?></td>
                         <td style="white-space:nowrap;">
-                            <?php if ($inq->status !== 'read') : ?><a href="<?php echo wp_nonce_url(admin_url('admin.php?page=psi-inquiries&action=read&inquiry_id='.$inq->id), 'psi_update_'.$inq->id); ?>" class="button button-small">Read</a><?php endif; ?>
-                            <?php if ($inq->status !== 'replied') : ?><a href="<?php echo wp_nonce_url(admin_url('admin.php?page=psi-inquiries&action=replied&inquiry_id='.$inq->id), 'psi_update_'.$inq->id); ?>" class="button button-small">Replied</a><?php endif; ?>
                             <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=psi-inquiries&delete_id='.$inq->id), 'psi_delete_'.$inq->id); ?>" class="button button-small psi-delete-btn" onclick="return confirm('Delete this inquiry?');">Delete</a>
+                            <a href="<?php echo esc_url( wp_nonce_url( admin_url('admin-post.php?action=psi_export_inquiries&ids[]='.$inq->id), 'psi_export_csv' ) ); ?>" class="button button-small" target="_blank">Export</a>
                         </td>
                     </tr>
                 <?php endforeach; endif; ?>
@@ -398,8 +374,112 @@ function psi_inquiries_list_page() {
         }
         ?>
     </div>
-    <script>jQuery(function($){$('#psi-select-all').on('click',function(){$('.psi-bulk-check').prop('checked',this.checked);});});</script>
+    <script>
+    jQuery(function($){
+        $('#psi-select-all').on('click',function(){$('.psi-bulk-check').prop('checked',this.checked);});
+
+        /* Intercept only the "Export Selected (CSV)" bulk action so it downloads
+           a file instead of submitting to this page — the "Delete" bulk action
+           still submits exactly as before. */
+        $('#psi-inquiries-form').on('submit', function(e){
+            var bulkAction = $(this).find('select[name="psi_bulk_action"]').val();
+            if ( bulkAction !== 'export' ) return; // let normal submission happen unchanged
+
+            e.preventDefault();
+            var ids = $('.psi-bulk-check:checked').map(function(){ return this.value; }).get();
+            if ( ids.length === 0 ) {
+                alert('Please select at least one inquiry to export.');
+                return;
+            }
+
+            var $exportForm = $('<form>', {
+                method: 'POST',
+                action: psi_admin_obj.ajax_url.replace('admin-ajax.php', 'admin-post.php'),
+                target: '_blank'
+            });
+            $exportForm.append($('<input>', { type: 'hidden', name: 'action', value: 'psi_export_inquiries' }));
+            $exportForm.append($('<input>', { type: 'hidden', name: '_wpnonce', value: psi_admin_obj.export_nonce }));
+            $.each(ids, function(i, id){
+                $exportForm.append($('<input>', { type: 'hidden', name: 'ids[]', value: id }));
+            });
+            $('body').append($exportForm);
+            $exportForm.submit();
+            $exportForm.remove();
+        });
+    });
+    </script>
     <?php
+}
+
+/* ==========================================================================
+   6a. CSV EXPORT
+   ========================================================================== */
+
+add_action( 'admin_post_psi_export_inquiries', 'psi_export_inquiries_csv' );
+function psi_export_inquiries_csv() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( 'You do not have permission to do this.' );
+    }
+    check_admin_referer( 'psi_export_csv' );
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'psi_inquiries';
+
+    /* Two modes:
+       1) Specific rows — used by the "Export" row-action link and the
+          "Export Selected (CSV)" bulk action (ids[] present).
+       2) Everything matching the current list filter — used by the
+          "Export CSV" header button (no ids[] present). */
+    $ids = isset( $_REQUEST['ids'] ) ? array_map( 'intval', (array) $_REQUEST['ids'] ) : array();
+
+    if ( ! empty( $ids ) ) {
+        $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+        $inquiries    = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $table WHERE id IN ($placeholders) ORDER BY created_at DESC", $ids ) );
+        $filename     = 'suite-inquiries-selected-' . date( 'Y-m-d' ) . '.csv';
+    } else {
+        $status_filter = isset( $_REQUEST['status_filter'] ) ? sanitize_text_field( $_REQUEST['status_filter'] ) : '';
+        $where         = $status_filter ? $wpdb->prepare( ' WHERE status = %s', $status_filter ) : '';
+        $inquiries     = $wpdb->get_results( "SELECT * FROM $table $where ORDER BY created_at DESC" );
+        $filename      = 'suite-inquiries-' . ( $status_filter ? $status_filter : 'all' ) . '-' . date( 'Y-m-d' ) . '.csv';
+    }
+
+    nocache_headers();
+    header( 'Content-Type: text/csv; charset=utf-8' );
+    header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+
+    $output = fopen( 'php://output', 'w' );
+    fputcsv( $output, array(
+        'ID', 'Name', 'Company', 'Email', 'Phone', 'City', 'Location',
+        'Start Date', 'End Date', 'Duration (Days)', 'Seats', 'Manager Seats',
+        'Total Price (INR)', 'Status', 'Submitted At',
+    ) );
+
+    foreach ( $inquiries as $inq ) {
+        $days          = ( strtotime( $inq->end_date ) - strtotime( $inq->start_date ) ) / 86400 + 1;
+        $city_name     = $inq->city_id ? get_the_title( $inq->city_id ) : '';
+        $location_name = $inq->location_id ? get_the_title( $inq->location_id ) : '';
+
+        fputcsv( $output, array(
+            $inq->id,
+            $inq->customer_name,
+            $inq->customer_company,
+            $inq->customer_email,
+            $inq->customer_phone,
+            $city_name,
+            $location_name,
+            $inq->start_date,
+            $inq->end_date,
+            $days,
+            $inq->seats,
+            $inq->manager_seats,
+            $inq->total_price,
+            $inq->status,
+            $inq->created_at,
+        ) );
+    }
+
+    fclose( $output );
+    exit;
 }
 
 /* ==========================================================================
