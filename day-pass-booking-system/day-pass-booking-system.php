@@ -669,7 +669,7 @@ if ( isset( $_GET['location'] ) ) {
                                     <button type="button" class="dpbs-cal-nav-btn" data-dir="next">&raquo;</button>
                                 </div>
                                 <div class="dpbs-cal-grid dpbs-cal-dow-row">
-                                    <div class="dpbs-cal-dow">Su</div><div class="dpbs-cal-dow">Mo</div>
+                                   <div class="dpbs-cal-dow is-weekend">Su</div><div class="dpbs-cal-dow">Mo</div>
                                     <div class="dpbs-cal-dow">Tu</div><div class="dpbs-cal-dow">We</div>
                                     <div class="dpbs-cal-dow">Th</div><div class="dpbs-cal-dow">Fr</div>
                                     <div class="dpbs-cal-dow is-weekend">Sa</div>

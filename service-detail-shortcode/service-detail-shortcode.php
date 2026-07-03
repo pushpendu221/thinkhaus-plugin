@@ -152,17 +152,17 @@ function sds_fix_unicode( string $text ): string {
    ========================================================================== */
 
 function sds_default_icons(): array {
-    $upload_url = wp_get_upload_dir()['baseurl'] . '/2026/06';
+    $upload_url = wp_get_upload_dir()['baseurl'] . '/2026/07';
     return [
-        'hours_of_operation' => $upload_url . '/thinkhaus-icons2-19.svg',
-        'location_address'   => $upload_url . '/thinkhaus-icons2-20.svg',
-        'metro_info'         => $upload_url . '/thinkhaus-icons2-01.svg',
-        'closest_airport'    => $upload_url . '/thinkhaus-icons2-21.svg',
-        'nearby_hotels'      => $upload_url . '/thinkhaus-icons2-26.svg',
-        'nearby_restaurants' => $upload_url . '/thinkhaus-icons2-24.svg',
-        'closest_mall'       => $upload_url . '/thinkhaus-icons2-04.svg',
-        'closest_cafe'       => $upload_url . '/thinkhaus-icons2-23.svg',
-        'where_to_park'      => $upload_url . '/thinkhaus-icons2-22.svg',
+        'hours_of_operation' => $upload_url . '/clock.svg',
+        'location_address'   => $upload_url . '/location-address.svg',
+        'metro_info'         => $upload_url . '/metro.svg',
+        'closest_airport'    => $upload_url . '/airport.svg',
+        'nearby_hotels'      => $upload_url . '/hoteltag.svg',
+        'nearby_restaurants' => $upload_url . '/hotelspoons.svg',
+        'closest_mall'       => $upload_url . '/closesthotel.svg',
+        'closest_cafe'       => $upload_url . '/cafenear.svg',
+        'where_to_park'      => $upload_url . '/parking.svg',
     ];
 }
 
@@ -509,18 +509,18 @@ function sds_render_shortcode( array $atts ): string {
                 <img class="poster" src="<?php echo $video_poster; ?>" alt="Service preview">
             </div>
         <?php endif; ?>
-
+        <div id="sticky-stop"></div>
     </div><!-- .singleservice-container -->
 
     <!-- ── CTA Bar ──────────────────────────────────────────────────────── -->
 <section class="bar">
     <!-- Triggers Tour Popup -->
     <a href="javascript:void(0);" id="tour-open-popup" class="commonbtn">
-        Schedule a tour
+        <span>Schedule a tour</span>
     </a>
     <!-- Triggers Booking Popup -->
-    <a href="javascript:void(0);" id="hbs-open-popup" class="commonbtn-orange">
-        Book space
+    <a href="javascript:void(0);" id="hbs-open-popup" class="day-pass-btn">
+        <span>Book space</span>
     </a>
 </section>
 

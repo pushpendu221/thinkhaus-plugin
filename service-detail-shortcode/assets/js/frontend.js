@@ -55,4 +55,48 @@ jQuery(document).ready(function ($) {
       );
     }
   });
+
+});
+
+jQuery(function ($) {
+
+    const $cta = $('.bar');
+    const $stopPoint = $('#sticky-stop');
+
+    
+    if (!$cta.length || !$stopPoint.length) {
+        return;
+    }
+
+    let ticking = false;
+
+    function toggleCta() {
+
+        const stopTop = $stopPoint.offset().top;
+        const scrollBottom = $(window).scrollTop() + $(window).height();
+
+        if (scrollBottom >= stopTop) {
+            $cta.addClass('is-hidden');
+        } else {
+            $cta.removeClass('is-hidden');
+        }
+
+        ticking = false;
+    }
+
+    $(window).on('scroll resize', function () {
+
+        if (!ticking) {
+
+            window.requestAnimationFrame(function () {
+                toggleCta();
+            });
+
+            ticking = true;
+        }
+
+    });
+
+    toggleCta();
+
 });

@@ -342,6 +342,10 @@
 .dpbs-submit-btn .dashicons {
   margin-left: 8px;
 }
+/* Fix: Sunday should also be weekend */
+.dpbs-cal-dow:first-child {
+  color: #e8521e;
+}
 
 /* ---- Responsive ---- */
 @media (max-width: 600px) {
