@@ -593,7 +593,7 @@ if ( isset( $_GET['location'] ) ) {
 
                 <form id="<?php echo $iid; ?>-booking-form" class="dpbs-booking-form dpbs-form-grid" data-instance="<?php echo $iid; ?>" novalidate>
                     <div class="dpbs-field">
-                        <label>Service</label>
+                        <!-- <label>Service</label> -->
                         <div class="dpbs-select-wrap">
                             <select name="service" id="<?php echo $iid; ?>-service" class="dpbs-service" required>
                                 <option value="">Select Service</option>
@@ -606,7 +606,7 @@ if ( isset( $_GET['location'] ) ) {
                         </div>
                     </div>
                     <div class="dpbs-field">
-                        <label>City</label>
+                        <!-- <label>City</label> -->
                         <div class="dpbs-select-wrap">
                             <select name="city" id="<?php echo $iid; ?>-city" class="dpbs-city" required>
                                 <option value="">Select City</option>
@@ -619,7 +619,7 @@ if ( isset( $_GET['location'] ) ) {
                         </div>
                     </div>
                     <div class="dpbs-field">
-                        <label>Location</label>
+                        <!-- <label>Location</label> -->
                         <div class="dpbs-select-wrap">
                             <select name="location" id="<?php echo $iid; ?>-location" class="dpbs-location" required>
                                 <option value="">Select Location</option>
@@ -627,40 +627,28 @@ if ( isset( $_GET['location'] ) ) {
                         </div>
                     </div>
                     <div class="dpbs-field">
-                        <label>Company (Optional)</label>
-                        <input type="text" name="company" class="dpbs-company" />
+                        <!-- <label>Company (Optional)</label> -->
+                        <input type="text" name="company" class="dpbs-company" placeholder="Company (Optional)" />
                     </div>
                     <div class="dpbs-field">
-                        <label>Full Name</label>
-                        <input type="text" name="full_name" class="dpbs-fullname" required />
+                        <!-- <label>Full Name</label> -->
+                        <input type="text" name="full_name" class="dpbs-fullname" placeholder="Full Name" required />
                     </div>
                     <div class="dpbs-field">
-                        <label>Phone Number</label>
-                        <input type="tel" name="phone" class="dpbs-phone" required placeholder="10-digit Indian number" />
-                        <small class="dpbs-field-hint">e.g. 9876543210</small>
+                        <!-- <label>Phone Number</label> -->
+                        <input type="tel" name="phone" class="dpbs-phone" required placeholder="Phone Number" />
+                        <!-- <small class="dpbs-field-hint">e.g. 9876543210</small> -->
                     </div>
                     <div class="dpbs-field">
-                        <label>Email</label>
-                        <input type="email" name="email" class="dpbs-email" required placeholder="you@example.com" />
+                        <!-- <label>Email</label> -->
+                        <input type="email" name="email" class="dpbs-email" required placeholder="Email" />
                     </div>
                     <div class="dpbs-field">
-                        <label>No. of Seats</label>
-                        <div class="dpbs-select-wrap">
-                            <select name="seats" id="<?php echo $iid; ?>-seats" class="dpbs-seats" required>
-                                <?php for ($i = 1; $i <= 50; $i++): ?>
-                                    <option value="<?php echo $i; ?>" <?php selected($i, 1); ?>><?php echo $i; ?></option>
-                                <?php endfor; ?>
-                            </select>
-                        </div>
-                        <small id="<?php echo $iid; ?>-seats-info" class="dpbs-seats-info"></small>
-                    </div>
-                    
-                    <div class="dpbs-field dpbs-field-full">
-                        <label>Date</label>
+                        <!-- <label>Date</label> -->
                         <div class="dpbs-date-field">
-                            <input type="text" name="date" id="<?php echo $iid; ?>-date" class="dpbs-date" required readonly placeholder="Select available date" />
+                            <input type="text" name="date" id="<?php echo $iid; ?>-date" class="dpbs-date" required readonly placeholder="Date" />
                             <div class="dpbs-date-icon"><span class="dashicons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
- </span></div>
+                            </span></div>
                             <!-- Calendar popover - JS moves this to <body> and positions it with getBoundingClientRect(), CSS just handles show/hide + styling -->
                             <div class="dpbs-calendar-popover" id="<?php echo $iid; ?>-calendar-popover">
                                 <div class="dpbs-cal-header">
@@ -668,21 +656,36 @@ if ( isset( $_GET['location'] ) ) {
                                     <span class="dpbs-cal-title"></span>
                                     <button type="button" class="dpbs-cal-nav-btn" data-dir="next">&raquo;</button>
                                 </div>
-                                <div class="dpbs-cal-grid dpbs-cal-dow-row">
-                                   <div class="dpbs-cal-dow is-weekend">Su</div><div class="dpbs-cal-dow">Mo</div>
-                                    <div class="dpbs-cal-dow">Tu</div><div class="dpbs-cal-dow">We</div>
-                                    <div class="dpbs-cal-dow">Th</div><div class="dpbs-cal-dow">Fr</div>
-                                    <div class="dpbs-cal-dow is-weekend">Sa</div>
+                                <div class="dpbs-cal-content">
+                                    <div class="dpbs-cal-grid dpbs-cal-dow-row">
+                                        <div class="dpbs-cal-dow is-weekend">Su</div><div class="dpbs-cal-dow">Mo</div>
+                                        <div class="dpbs-cal-dow">Tu</div><div class="dpbs-cal-dow">We</div>
+                                        <div class="dpbs-cal-dow">Th</div><div class="dpbs-cal-dow">Fr</div>
+                                        <div class="dpbs-cal-dow is-weekend">Sa</div>
+                                    </div>
+                                    <div class="dpbs-cal-grid dpbs-cal-days" id="<?php echo $iid; ?>-cal-days"></div>
                                 </div>
-                                <div class="dpbs-cal-grid dpbs-cal-days" id="<?php echo $iid; ?>-cal-days"></div>
                             </div>
                         </div>
                     </div>
+                    <div class="dpbs-field">
+                        <!-- <label>No. of Seats</label> -->
+                        <div class="dpbs-select-wrap">
+                            <select name="seats" id="<?php echo $iid; ?>-seats" class="dpbs-seats" required>
+                                <option value="">No. of Seats</option>
+                                <?php for ($i = 1; $i <= 50; $i++): ?>
+                                    <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
+                                <?php endfor; ?>
+                            </select>
+                        </div>
+                        <small id="<?php echo $iid; ?>-seats-info" class="dpbs-seats-info"></small>
+                    </div>
+                    
 
                     <div class="dpbs-form-footer dpbs-field-full">
                         <div class="dpbs-form-message" id="<?php echo $iid; ?>-form-message"></div>
                         <button type="submit" class="dpbs-submit-btn jd-bookaday-button">
-                           Book Now <span class="dashicons dashicons-arrow-right-alt2"></span>
+                           Book Now <!-- <span class="dashicons dashicons-arrow-right-alt2"></span> -->
                         </button>
                     </div>
                 </form>

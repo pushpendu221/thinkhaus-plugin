@@ -1,6 +1,6 @@
 /**
  * DPBS Frontend - Multi-Instance Support
- * FIXED: Calendar close issue + Mobile calendar visibility
+ * FIXED: Calendar close issue + Mobile calendar visibility in Elementor headers
  */
 (function ($) {
   "use strict";
@@ -17,6 +17,10 @@
     this.calendarOpen = false;
     this._scrollParents = null;
     this._touchHandled = false;
+    this._useMobileModal = false;
+    this._mobileModal = null;
+    this._scrollParentModal = null;
+    this._savedScrollTopModal = 0;
 
     this.els = {
       form: container.find(".dpbs-booking-form"),
@@ -48,7 +52,6 @@
       if (this.initialized) return;
       this.initialized = true;
 
-      // Move calendar to body to escape any transform/overflow containment
       if (this.els.calPopover.length) {
         this.els.calPopover.appendTo(document.body);
       }
@@ -60,7 +63,6 @@
     bindEvents: function () {
       var self = this;
 
-      // City change
       this.els.city.on("change", function () {
         self.selectedDate = "";
         self.els.date.val("");
@@ -70,7 +72,6 @@
         });
       });
 
-      // Service change
       this.els.service.on("change", function () {
         self.selectedDate = "";
         self.els.date.val("");
@@ -82,7 +83,6 @@
         });
       });
 
-      // Location change
       this.els.location.on("change", function () {
         self.selectedDate = "";
         self.els.date.val("");
@@ -90,36 +90,25 @@
         self.loadCalendar();
       });
 
-      // Seats change
       this.els.seats.on("change", function () {
         self.updateSeatsInfo();
       });
 
-      // ============================================
-      // FIX: Simplified date field click/touch handling
-      // Only bind to the date INPUT, not the wrapper
-      // Use a flag to prevent double-fire from touch+click
-      // ============================================
-      this.els.date.on("click.dpbs-date touchend.dpbs-date", function (e) {
-        // If touchend just fired, skip the subsequent click
-        if (e.type === "click" && self._touchHandled) {
-          return;
-        }
-
-        // Mark that touchend fired
+         this.els.dateField.on("click.dpbs-date touchend.dpbs-date", function (e) {
+        if ($(e.target).closest(".dpbs-calendar-popover").length) return;
+        if (e.type === "click" && self._touchHandled) return;
         if (e.type === "touchend") {
+          e.preventDefault();
           self._touchHandled = true;
           setTimeout(function () {
             self._touchHandled = false;
           }, 400);
         }
-
         e.preventDefault();
         e.stopPropagation();
         self.toggleCalendar();
       });
 
-      // Calendar navigation (popover is now in body, so delegate from it)
       this.els.calPopover.on("click", ".dpbs-cal-nav-btn", function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -132,18 +121,11 @@
         self.loadCalendar();
       });
 
-      // ============================================
-      // FIX: Calendar day selection - handle both click and touchend
-      // with proper double-fire prevention
-      // ============================================
       this.els.calPopover.on(
         "click.dpbs-day touchend.dpbs-day",
         ".dpbs-cal-day:not(.is-empty):not(.is-disabled)",
         function (e) {
-          // Prevent double-fire
-          if (e.type === "click" && self._touchHandled) {
-            return;
-          }
+          if (e.type === "click" && self._touchHandled) return;
           if (e.type === "touchend") {
             e.preventDefault();
             self._touchHandled = true;
@@ -151,7 +133,6 @@
               self._touchHandled = false;
             }, 400);
           }
-
           e.stopPropagation();
 
           self.els.calDays.find(".dpbs-cal-day").removeClass("is-selected");
@@ -159,24 +140,17 @@
           self.selectedDate = $(this).data("date");
           self.els.date.val(self.selectedDate);
 
-          // Close calendar immediately
           self.closeCalendar();
-
           self.updateSeatsInfo();
           self.clearFormMessage();
         },
       );
 
-      // Form submission
       this.els.form.on("submit", function (e) {
         e.preventDefault();
         self.handleFormSubmit();
       });
     },
-
-    // =============================================
-    // PRESELECTED VALUES
-    // =============================================
 
     loadPreselected: function () {
       var self = this;
@@ -204,10 +178,6 @@
       }
     },
 
-    // =============================================
-    // VALIDATION HELPERS
-    // =============================================
-
     isValidEmail: function (email) {
       return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email);
     },
@@ -215,10 +185,6 @@
     isValidIndianPhone: function (phone) {
       return /^[6-9]\d{9}$/.test(phone.replace(/[\s\-\+\(\)]/g, ""));
     },
-
-    // =============================================
-    // CITIES
-    // =============================================
 
     loadCitiesForService: function (callback) {
       var self = this;
@@ -250,10 +216,6 @@
       );
     },
 
-    // =============================================
-    // LOCATIONS
-    // =============================================
-
     loadLocations: function (callback) {
       var self = this;
       var cityId = this.els.city.val();
@@ -279,10 +241,6 @@
       );
     },
 
-    // =============================================
-    // PRICE
-    // =============================================
-
     updatePrice: function () {
       var self = this;
       var sid = this.els.service.val();
@@ -305,10 +263,6 @@
         },
       );
     },
-
-    // =============================================
-    // SEATS INFO
-    // =============================================
 
     updateSeatsInfo: function () {
       if (!this.selectedDate) {
@@ -343,10 +297,6 @@
       }
     },
 
-    // =============================================
-    // CALENDAR - Toggle
-    // =============================================
-
     toggleCalendar: function () {
       var sid = this.els.service.val();
       var lid = this.els.location.val();
@@ -354,7 +304,6 @@
       if (!sid || !lid) {
         var errorMsg = "Please select a Service and Location first.";
         this.showFormMessage(errorMsg, "error");
-        // Alert fallback for header placements where message might be hidden
         if (this.isInHeader()) {
           alert(errorMsg);
         }
@@ -405,28 +354,38 @@
     },
 
     openCalendar: function () {
+      var viewportWidth =
+        window.innerWidth || document.documentElement.clientWidth;
+
+      if (viewportWidth <= 768) {
+        this.calendarOpen = true;
+        this._useMobileModal = true;
+        this._openMobileModal();
+      } else {
+        this.calendarOpen = true;
+        this._useMobileModal = false;
+        this._openPopover();
+      }
+    },
+
+    _openPopover: function () {
       var self = this;
 
-      this.calendarOpen = true;
-
-      // Set z-index and clear any transforms that could cause issues
       this.els.calPopover.css({
         "z-index": "99999999",
         transform: "none",
         "-webkit-transform": "none",
       });
 
-      // Add the class that makes it visible (CSS controls display)
       this.els.calPopover.addClass("is-open");
+      this.els.calPopover[0].style.setProperty("display", "block", "important");
 
-      // Position after it's visible so we can measure it
       this.positionCalendar();
 
       if (this.els.calDays.children().length === 0) {
         this.loadCalendar();
       }
 
-      // Close on outside click
       $(document).off(
         "click.dpbs-close-" + this.id + " touchend.dpbs-close-" + this.id,
       );
@@ -434,7 +393,6 @@
         "click.dpbs-close-" + this.id + " touchend.dpbs-close-" + this.id,
         function (e) {
           var $target = $(e.target);
-          // Skip if touch was just handled
           if (e.type === "click" && self._touchHandled) return;
 
           var clickedOutside =
@@ -447,7 +405,6 @@
         },
       );
 
-      // Reposition on scroll
       this._scrollParents = this.getScrollParents(this.els.dateField[0]);
       $(this._scrollParents).off("scroll.dpbs-" + this.id);
       $(this._scrollParents).on("scroll.dpbs-" + this.id, function () {
@@ -457,13 +414,221 @@
       });
     },
 
+    _openMobileModal: function () {
+      var self = this;
+      
+      // 1. Find the scrollable parent (the Elementor off-canvas menu)
+      var scrollParent = null;
+      var $p = this.container.parent();
+      while ($p.length && $p[0] !== document.body) {
+          if ($p[0].scrollHeight > $p[0].clientHeight) {
+              scrollParent = $p[0];
+              break;
+          }
+          $p = $p.parent();
+      }
+      
+      // 2. Lock scroll and snap to top so top:0 aligns perfectly with screen
+      if (scrollParent) {
+          this._savedScrollTopModal = scrollParent.scrollTop;
+          scrollParent._dpbs_old_overflow = scrollParent.style.overflow;
+          scrollParent.style.overflow = 'hidden';
+          scrollParent.scrollTop = 0; 
+          this._scrollParentModal = scrollParent;
+      }
+      
+      // 3. Simple top:0 left:0 now works perfectly because we snapped scroll to 0
+      var m = '<div id="dpbs-mm-' + this.id + '" style="position:absolute;top:0;left:0;right:0;bottom:0;height:100vh;height:100dvh;z-index:2147483647;background:rgba(0,0,0,0.6);display:flex;flex-direction:column;align-items:center;justify-content:center;padding: 60px 16px 16px;box-sizing:border-box;"><div style="background:#fff;border-radius:16px;width:100%;max-width:340px;box-shadow:0 25px 60px rgba(0,0,0,0.4);overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;"><div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid #f0ede6;"><button type="button" class="dpbs-mm-prev" style="background:#f5f3ed;border:none;cursor:pointer;width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#444;">&laquo;</button><span class="dpbs-mm-title" style="font-weight:700;font-size:15px;color:#1f1f1f;"></span><button type="button" class="dpbs-mm-next" style="background:#f5f3ed;border:none;cursor:pointer;width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#444;">&raquo;</button></div><div style="padding:12px 16px 8px;"><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;margin-bottom:8px;"><div style="font-size:10px;font-weight:800;color:#e8521e;padding:4px 0;">Su</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Mo</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Tu</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">We</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Th</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Fr</div><div style="font-size:10px;font-weight:800;color:#e8521e;padding:4px 0;">Sa</div></div><div class="dpbs-mm-days" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;"></div></div><div style="padding:8px 16px 16px;text-align:center;"><button type="button" class="dpbs-mm-close" style="background:#e8521e;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Close</button></div></div></div>';
+      
+      // Append to scroll parent so it's guaranteed not to be clipped
+      var appendTarget = scrollParent || this.container;
+      this._mobileModal = $(m).appendTo(appendTarget);
+
+      var $modal = this._mobileModal;
+      
+      $modal.on("click", ".dpbs-mm-prev", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        self.calDate.setMonth(self.calDate.getMonth() - 1);
+        self._loadCalendarIntoModal();
+      });
+      
+      $modal.on("click", ".dpbs-mm-next", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        self.calDate.setMonth(self.calDate.getMonth() + 1);
+        self._loadCalendarIntoModal();
+      });
+      
+      $modal.on("click", ".dpbs-mm-day:not(.dpbs-mm-disabled)", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        self.selectedDate = $(this).data("date");
+        self.els.date.val(self.selectedDate);
+        self.els.calDays.find(".dpbs-cal-day").removeClass("is-selected");
+        self.els.calDays.find('.dpbs-cal-day[data-date="' + self.selectedDate + '"]').addClass("is-selected");
+        self.closeCalendar();
+        self.updateSeatsInfo();
+        self.clearFormMessage();
+      });
+      
+      $modal.on("click", ".dpbs-mm-close", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        self.closeCalendar();
+      });
+      
+      $modal.on("click", function (e) {
+        if ($(e.target).is("#dpbs-mm-" + self.id)) {
+          self.closeCalendar();
+        }
+      });
+
+      this._loadCalendarIntoModal();
+    },
+
+    _loadCalendarIntoModal: function () {
+      var self = this;
+      var sid = this.els.service.val();
+      var lid = this.els.location.val();
+      if (!sid || !lid || !this._mobileModal) return;
+
+      var $days = this._mobileModal.find(".dpbs-mm-days");
+      var $title = this._mobileModal.find(".dpbs-mm-title");
+      var monthNames = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+      ];
+
+      $title.text(
+        monthNames[this.calDate.getMonth()] + " " + this.calDate.getFullYear(),
+      );
+      $days.html(
+        '<div style="grid-column:1/-1;padding:20px;color:#999;font-size:13px;">Loading...</div>',
+      );
+
+      $.post(
+        dpbs_obj.ajax_url,
+        {
+          action: "dpbs_get_calendar",
+          service_id: sid,
+          location_id: lid,
+          month: this.calDate.getMonth() + 1,
+          year: this.calDate.getFullYear(),
+        },
+        function (response) {
+          var res = JSON.parse(response);
+          if (res.success) {
+            self._renderMobileModalDays(res.calendar, $days);
+            // Also update standard popover so seats info works correctly later
+            self.renderCalendar(res.calendar);
+          }
+        },
+      ).fail(function () {
+        $days.html(
+          '<div style="grid-column:1/-1;padding:20px;color:#c0392b;font-size:13px;">Failed to load calendar.</div>',
+        );
+      });
+    },
+
+    _renderMobileModalDays: function (calendarData, $container) {
+      var month = this.calDate.getMonth();
+      var year = this.calDate.getFullYear();
+      var firstDay = new Date(year, month, 1).getDay();
+      var daysInMonth = new Date(year, month + 1, 0).getDate();
+      var html = "";
+
+      // Empty days padding
+      for (var i = 0; i < firstDay; i++) {
+        html += '<div style="min-height:44px;"></div>';
+      }
+
+      // Actual days
+      for (var d = 1; d <= daysInMonth; d++) {
+        var dateStr =
+          year +
+          "-" +
+          String(month + 1).padStart(2, "0") +
+          "-" +
+          String(d).padStart(2, "0");
+        var dayData = calendarData[dateStr] || {
+          status: "available",
+          seats: 0,
+        };
+        var dayOfWeek = new Date(year, month, d).getDay();
+        var isDisabled = dayData.status === "past" || dayData.status === "full";
+        var isSelected = dateStr === this.selectedDate;
+
+        var baseStyle =
+          "min-height:44px;display:flex;align-items:center;justify-content:center;font-size:13px;border-radius:8px;cursor:pointer;position:relative;";
+        var finalStyle = "";
+        var cls = "dpbs-mm-day";
+
+        if (isDisabled) {
+          finalStyle =
+            baseStyle +
+            "color:#d4d0c8;cursor:not-allowed;text-decoration:line-through;";
+          cls += " dpbs-mm-disabled";
+        } else if (isSelected) {
+          finalStyle =
+            baseStyle +
+            "background:#e8521e;color:#fff;font-weight:700;box-shadow:0 3px 10px rgba(232, 82, 30, 0.3);";
+        } else if (dayOfWeek === 0 || dayOfWeek === 6) {
+          finalStyle = baseStyle + "color:#e8521e;";
+        } else {
+          finalStyle = baseStyle + "color:#2b2b2b;";
+        }
+
+        var dot = "";
+        if (dayData.status === "limited" && !isDisabled) {
+          dot =
+            '<span style="position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#3b82f6;"></span>';
+        } else if (dayData.status === "full") {
+          dot =
+            '<span style="position:absolute;bottom:2px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:#ef4444;"></span>';
+        }
+
+        html +=
+          '<div class="' +
+          cls +
+          '" data-date="' +
+          dateStr +
+          '" data-seats="' +
+          dayData.seats +
+          '" style="' +
+          finalStyle +
+          '">' +
+          d +
+          dot +
+          "</div>";
+      }
+      $container.html(html);
+    },
+
     closeCalendar: function () {
       this.calendarOpen = false;
 
-      // Remove the visibility class - this is what hides it via CSS
-      this.els.calPopover.removeClass("is-open");
+      if (this._mobileModal) {
+        this._mobileModal.remove();
+        this._mobileModal = null;
+      }
+      
+      // Unlock scroll and instantly restore the user's original scroll position
+      if (this._scrollParentModal) {
+        this._scrollParentModal.style.overflow = this._scrollParentModal._dpbs_old_overflow || '';
+        this._scrollParentModal.scrollTop = this._savedScrollTopModal || 0;
+        this._scrollParentModal = null;
+      }
 
-      // Clean up event listeners
+      this.els.calPopover.removeClass("is-open");
+      this.els.calPopover[0].style.removeProperty("display");
+
       $(document).off("click.dpbs-close-" + this.id);
       $(document).off("touchend.dpbs-close-" + this.id);
 
@@ -488,7 +653,7 @@
         window.innerHeight || document.documentElement.clientHeight;
 
       // Adjust width for mobile
-      if (viewportWidth <= 600) {
+      if (viewportWidth <= 768) {
         popoverWidth = Math.min(viewportWidth - 40, 320);
         popover.css("width", popoverWidth + "px");
       }
@@ -506,13 +671,10 @@
       var top;
 
       if (popoverHeight <= spaceBelow) {
-        // Fits below
         top = rect.bottom + 5;
       } else if (popoverHeight <= spaceAbove) {
-        // Fits above
         top = rect.top - popoverHeight - 5;
       } else {
-        // Doesn't fit either way - use larger space
         top =
           spaceBelow >= spaceAbove
             ? rect.bottom + 5
@@ -522,11 +684,6 @@
       // Final clamp
       top = Math.max(10, Math.min(top, viewportHeight - 50));
 
-      // ============================================
-      // FIX: Do NOT set display: block here!
-      // The CSS class .is-open controls visibility.
-      // Setting inline display overrides the class removal.
-      // ============================================
       popover.css({
         top: top + "px",
         left: left + "px",
@@ -571,7 +728,7 @@
           var res = JSON.parse(response);
           if (res.success) {
             self.renderCalendar(res.calendar);
-            if (self.calendarOpen) {
+            if (self.calendarOpen && !self._useMobileModal) {
               setTimeout(function () {
                 self.positionCalendar();
               }, 10);
@@ -632,7 +789,7 @@
         var dotHtml = "";
         var dayOfWeek = new Date(year, month, d).getDay();
 
-        if (dayOfWeek === 6) classes += " is-weekend";
+        if (dayOfWeek === 0 || dayOfWeek === 6) classes += " is-weekend";
         if (dayData.status === "past") classes += " is-disabled";
         if (dayData.status === "full") {
           classes += " is-disabled";
@@ -884,6 +1041,11 @@
         self.els.submitBtn.prop("disabled", false);
       });
     },
+
+    destroy: function () {
+      this.closeCalendar();
+      delete instances[this.id];
+    },
   };
 
   // =============================================
@@ -902,7 +1064,6 @@
       "dpbs-auto-" + Date.now() + "-" + Math.floor(Math.random() * 1e6);
     var key = instanceId;
 
-    // Handle cloned elements with same instance-id
     if (instances[key] && instances[key].container[0] !== $container[0]) {
       key =
         instanceId + "-" + Date.now() + "-" + Math.floor(Math.random() * 1e6);
@@ -957,7 +1118,7 @@
   // Reposition on resize/orientation
   $(window).on("resize orientationchange", function () {
     $.each(instances, function (id, instance) {
-      if (instance.calendarOpen) {
+      if (instance.calendarOpen && !instance._useMobileModal) {
         setTimeout(function () {
           instance.positionCalendar();
         }, 100);

@@ -4,7 +4,24 @@
    plugin. Nothing here reuses a class from the Schedule Forms
    (cwf-*) plugin, so the two stylesheets can never override
    each other when both load on the same page.
+   
+   v1.7.1 - Added fullscreen calendar mode for mobile headers
    =========================================================== */
+
+/* Position context for mobile modal absolute positioning */
+.dpbs-booking-instance {
+  position: relative;
+}
+
+/* Body scroll lock when fullscreen calendar is open */
+.dpbs-body-no-scroll {
+  overflow: hidden !important;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  -webkit-overflow-scrolling: none;
+}
 
 .dpbs-form-wrap {
   max-width: 100%;
@@ -15,25 +32,29 @@
 }
 
 .dpbs-form-heading {
-  font-size: 32px;
-  font-weight: 700;
-  color: #1f1f1f;
-  margin: 0 0 16px;
-  letter-spacing: -0.5px;
+  font-family: "NeutraText", sans-serif !important;
+  font-size: 27px;
+  font-weight: 500 !important;
+  line-height: 33px;
+  color: #281D18;
+  margin: 0px;
+  margin-bottom: 20px;
 }
 
 .dpbs-price-line {
-  margin-bottom: 24px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f1f1f;
+  font-family: "NeutraText", sans-serif !important;
+  margin-bottom: 28px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 23px;
+  color: #281D18;
 }
 
 /* ---- Field grid (2 columns) ---- */
 .dpbs-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px 24px;
+  gap: 10px;
 }
 
 .dpbs-field {
@@ -175,6 +196,91 @@
   display: block;
 }
 
+/* ============================================
+   FULLSCREEN CALENDAR MODE
+   Used on mobile devices when the form is in a header
+   to bypass iOS Safari's getBoundingClientRect() bug
+   ============================================ */
+.dpbs-calendar-popover.is-fullscreen {
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.dpbs-calendar-popover.is-fullscreen .dpbs-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Calendar content card inside fullscreen overlay */
+.dpbs-calendar-popover.is-fullscreen .dpbs-cal-content {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow:
+    0 25px 60px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Close button for fullscreen mode */
+.dpbs-cal-close {
+  display: none;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-size: 24px;
+  line-height: 1;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: auto;
+  flex-shrink: 0;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.dpbs-cal-close:hover,
+.dpbs-cal-close:active {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.dpbs-calendar-popover.is-fullscreen .dpbs-cal-close {
+  display: flex;
+}
+
+/* Fullscreen header styling */
+.dpbs-calendar-popover.is-fullscreen .dpbs-cal-title {
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+}
+.dpbs-calendar-popover.is-fullscreen .dpbs-cal-nav-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.dpbs-calendar-popover.is-fullscreen .dpbs-cal-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+/* ============================================
+   END FULLSCREEN CALENDAR MODE
+   ============================================ */
+
 .dpbs-cal-header {
   display: flex;
   align-items: center;
@@ -203,6 +309,7 @@
   transition:
     background 0.15s ease,
     color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .dpbs-cal-nav-btn:hover {
   background: #e8e4da;
@@ -248,10 +355,15 @@
   transition:
     background 0.12s ease,
     border-color 0.12s ease;
+  /* Improve touch target */
+  touch-action: manipulation;
 }
 .dpbs-cal-day:hover:not(.is-disabled):not(.is-empty):not(.is-selected) {
   background: #f8f6f1;
   border-color: #e8e4da;
+}
+.dpbs-cal-day:active:not(.is-disabled):not(.is-empty):not(.is-selected) {
+  background: #f0ede6;
 }
 .dpbs-cal-day.is-empty {
   cursor: default;
@@ -331,6 +443,7 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .dpbs-submit-btn:hover {
   background: #cf4716;
@@ -342,13 +455,9 @@
 .dpbs-submit-btn .dashicons {
   margin-left: 8px;
 }
-/* Fix: Sunday should also be weekend */
-.dpbs-cal-dow:first-child {
-  color: #e8521e;
-}
 
 /* ---- Responsive ---- */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .dpbs-form-grid {
     grid-template-columns: 1fr;
     gap: 18px;
@@ -366,6 +475,7 @@
     align-items: stretch;
     gap: 12px;
     margin-top: 20px;
+    padding-top: 0px;
   }
   .dpbs-form-message {
     text-align: center;
@@ -373,4 +483,36 @@
   .dpbs-submit-btn {
     width: 100%;
   }
+
+  /* Larger touch targets for mobile calendar */
+  .dpbs-cal-day {
+    font-size: 14px;
+    min-height: 48px;
+    padding: 8px 0 12px;
+  }
+  .dpbs-cal-nav-btn {
+    min-width: 48px;
+    min-height: 48px;
+    font-size: 16px;
+  }
+}
+
+/* Small mobile phones */
+@media (max-width: 380px) {
+  .dpbs-calendar-popover.is-fullscreen .dpbs-cal-content {
+    padding: 16px;
+    border-radius: 12px;
+  }
+  .dpbs-cal-day {
+    font-size: 13px;
+    min-height: 44px;
+  }
+  .dpbs-cal-dow {
+    font-size: 9px;
+  }
+}
+
+/* Fix: Sunday should also be weekend */
+.dpbs-cal-dow:first-child {
+  color: #e8521e;
 }
