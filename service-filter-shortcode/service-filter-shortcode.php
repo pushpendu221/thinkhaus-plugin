@@ -275,18 +275,41 @@ function sfs_render_shortcode( array $atts ): string {
 	$uid = 'sfs-' . $instance;
 
 	// ── Carousel options ──────────────────────────────────────────────────
+	// $default_carousel = [
+	// 	'loop'       => false,
+	// 	'margin'     => 31,
+	// 	'nav'        => true,
+	// 	'dots'       => true,
+	// 	'autoplay'   => false,
+	// 	'responsive' => [
+	// 		0    => [ 'items' => 1 ],
+	// 		600  => [ 'items' => 2.5 ],
+	// 		1024 => [ 'items' => 3.5 ],
+	// 	],
+	// ];
 	$default_carousel = [
-		'loop'       => false,
-		'margin'     => 24,
-		'nav'        => true,
-		'dots'       => true,
-		'autoplay'   => false,
-		'responsive' => [
-			0    => [ 'items' => 1 ],
-			600  => [ 'items' => 2 ],
-			1024 => [ 'items' => 4 ],
-		],
-	];
+    'loop' => false,
+    'rewind' => true, // Add this
+    'margin' => 31,
+    'nav' => true,
+    'dots' => true,
+    'autoplay' => false,
+    'slideBy' => 1, // Add this
+    'mouseDrag' => true,
+    'touchDrag' => true,
+    'pullDrag' => true,
+    'responsive' => [
+        0 => [
+            'items' => 1,
+        ],
+        600 => [
+            'items' => 2.5,
+        ],
+        1024 => [
+            'items' => 3.5,
+        ],
+    ],
+];
 	$carousel_opts = ! empty( $atts['carousel_opts'] )
 		? wp_parse_args( json_decode( $atts['carousel_opts'], true ) ?? [], $default_carousel )
 		: $default_carousel;

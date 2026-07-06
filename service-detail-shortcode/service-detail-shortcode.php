@@ -476,6 +476,12 @@ function sds_render_shortcode( array $atts ): string {
 
             <?php foreach ( $labels as $key => $label ) :
                 $value = $f[ $key ] ?? '';
+
+                // Skip this feature block entirely if no meta/SCF value exists.
+                if ( '' === $value ) {
+                    continue;
+                }
+
                 $icon  = $icons[ $key ] ?? '';
             ?>
                 <div class="feature">
@@ -484,11 +490,9 @@ function sds_render_shortcode( array $atts ): string {
                     <?php endif; ?>
                     <div class="content">
                         <h4><?php echo esc_html( $label ); ?></h4>
-                        <?php if ( $value ) : ?>
-                            <div class="content-desc">
-                                <?php echo sds_lines_to_paragraphs( $value ); ?>
-                            </div>
-                        <?php endif; ?>
+                        <div class="content-desc">
+                            <?php echo sds_lines_to_paragraphs( $value ); ?>
+                        </div>
                     </div>
                 </div>
 

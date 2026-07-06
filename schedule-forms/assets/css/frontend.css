@@ -84,11 +84,13 @@
 }
 
 .cwf-form-heading {
-  font-size: 32px;
-  font-weight: 700;
-  color: #1f1f1f;
-  margin: 0 0 28px;
-  letter-spacing: -0.5px;
+  font-family: "NeutraText", sans-serif !important;
+  font-size: 27px;
+  font-weight: 500 !important;
+  line-height: 33px;
+  color: #281D18;
+  margin: 0px;
+  margin-bottom: 20px;
 }
 
 /* ---- Field grid (2 columns like the mockup) ---- */
@@ -325,6 +327,13 @@
 .cwf-submit-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+@media (max-width: 768px){
+   .cwf-form-heading {
+        font-size: 26px;
+    }
+
 }
 
 @media (max-width: 600px) {

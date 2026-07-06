@@ -546,8 +546,8 @@ function hbs_render_booking_form( $atts ) {
                     <input type="hidden" name="location" value="<?php echo esc_attr( $atts['location_id'] ); ?>">
                 <?php endif; ?>
 
-                <div class="hbs-field">
-                    <label>Service</label>
+                <div class="hbs-field" style="display:none;">
+                    <!-- <label>Service</label> -->
                     <div class="hbs-select-wrap">
                         <select name="service" id="hbs-service" required <?php echo $is_locked ? 'disabled' : ''; ?>>
                             <option value="">Select Service</option>
@@ -565,8 +565,8 @@ function hbs_render_booking_form( $atts ) {
                         </select>
                     </div>
                 </div>
-                <div class="hbs-field">
-                    <label>City</label>
+                <div class="hbs-field" style="display:none;">
+                    <!-- <label>City</label> -->
                     <div class="hbs-select-wrap">
                         <select name="city" id="hbs-city" required <?php echo $is_locked ? 'disabled' : ''; ?>>
                             <option value="">Select City</option>
@@ -584,8 +584,8 @@ function hbs_render_booking_form( $atts ) {
                         </select>
                     </div>
                 </div>
-                <div class="hbs-field">
-                    <label>Location</label>
+                <div class="hbs-field" style="display:none;">
+                    <!-- <label>Location</label> -->
                     <div class="hbs-select-wrap">
                         <select name="location" id="hbs-location" required <?php echo $is_locked ? 'disabled' : ''; ?>>
                             <?php if ( $is_locked ) : ?>
@@ -596,15 +596,15 @@ function hbs_render_booking_form( $atts ) {
                         </select>
                     </div>
                 </div>
-                <div class="hbs-field"><label>Company (Optional)</label><input type="text" name="company" /></div>
-                <div class="hbs-field"><label>Full Name</label><input type="text" name="full_name" required /></div>
-                <div class="hbs-field"><label>Phone Number</label><input type="tel" name="phone" required /></div>
-                <div class="hbs-field"><label>Email</label><input type="email" name="email" required /></div>
-                <div class="hbs-field"><label>Hours</label><div class="hbs-select-wrap"><select name="hours" id="hbs-hours" required></select></div></div>
+                <div class="hbs-field"><!--<label>Full Name</label>--><input type="text" name="full_name" placeholder="Full Name" required /></div>
+                <div class="hbs-field"><!--<label>Company (Optional)</label>--><input type="text" name="company" placeholder="Company (Optional)" /></div>
+                <div class="hbs-field"><!--<label>Phone Number</label>--><input type="tel" name="phone" placeholder="Phone Number" required /></div>
+                <div class="hbs-field"><!--<label>Email</label>--><input type="email" name="email" placeholder="Email" required /></div>
+                <div class="hbs-field"><!--<label>Hours</label>--><div class="hbs-select-wrap"><select name="hours" id="hbs-hours" required></select></div></div>
    
-                <div class="hbs-field"><label>Date</label><div class="hbs-date-field"><input type="text" name="date" id="hbs-date" required readonly placeholder="Select available date" /><div class="hbs-date-icon"><span class="dashicons dashicons-calendar-alt"></span></div><div class="hbs-calendar-popover" id="hbs-calendar-popover"><div class="hbs-cal-header"><button type="button" class="hbs-cal-nav-btn" data-dir="prev">&laquo;</button><span class="hbs-cal-title"></span><button type="button" class="hbs-cal-nav-btn" data-dir="next">&raquo;</button></div><div class="hbs-cal-grid"><div class="hbs-cal-dow">Su</div><div class="hbs-cal-dow">Mo</div><div class="hbs-cal-dow">Tu</div><div class="hbs-cal-dow">We</div><div class="hbs-cal-dow">Th</div><div class="hbs-cal-dow">Fr</div><div class="hbs-cal-dow is-weekend">Sa</div></div><div class="hbs-cal-grid" id="hbs-cal-days"></div></div></div></div>
-                <div class="hbs-field" id="hbs-rooms-field-wrap"><label>No. of Rooms</label><div class="hbs-select-wrap"><select name="rooms" id="hbs-rooms" required><option value="">Select Date First</option></select></div></div>
-                <div class="hbs-form-footer hbs-field-full"><div class="hbs-form-message" id="hbs-form-message"></div><button type="submit" class="hbs-submit-btn">BOOK NOW</button></div>
+                <div class="hbs-field"><!--<label>Date</label>--><div class="hbs-date-field"><input type="text" name="date" id="hbs-date" required readonly placeholder="Select available date" /><div class="hbs-date-icon"><span class="dashicons dashicons-calendar-alt"></span></div><div class="hbs-calendar-popover" id="hbs-calendar-popover"><div class="hbs-cal-header"><button type="button" class="hbs-cal-nav-btn" data-dir="prev">&laquo;</button><span class="hbs-cal-title"></span><button type="button" class="hbs-cal-nav-btn" data-dir="next">&raquo;</button></div><div class="hbs-cal-grid"><div class="hbs-cal-dow is-weekend">Su</div><div class="hbs-cal-dow">Mo</div><div class="hbs-cal-dow">Tu</div><div class="hbs-cal-dow">We</div><div class="hbs-cal-dow">Th</div><div class="hbs-cal-dow">Fr</div><div class="hbs-cal-dow is-weekend">Sa</div></div><div class="hbs-cal-grid" id="hbs-cal-days"></div></div></div></div>
+                <div class="hbs-field" id="hbs-rooms-field-wrap"><!--<label>No. of Rooms</label>--><div class="hbs-select-wrap"><select name="rooms" id="hbs-rooms" required><option value="">Select Date First</option></select></div></div>
+                <div class="hbs-form-footer hbs-field-full"><button type="submit" class="hbs-submit-btn">Book Now</button><div class="hbs-form-message" id="hbs-form-message"></div></div>
             </form>
         </div>
     </div>

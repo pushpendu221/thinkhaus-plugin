@@ -1,0 +1,323 @@
+/* ===========================================================
+   ThinkHaus Admin Styles — Private Suites Inquiry
+   =========================================================== */
+
+/* ---- Layout ---- */
+.hbs-admin-wrap {
+  max-width: 1180px;
+}
+.hbs-admin-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 20px 0 24px;
+}
+.hbs-admin-header h1 {
+  margin: 0;
+  padding: 0;
+  font-size: 23px;
+  font-weight: 600;
+  color: #1d2327;
+}
+.hbs-admin-header-sub {
+  font-size: 14px;
+  color: #757575;
+  font-weight: 500;
+  padding: 3px 10px;
+  background: #fff;
+  border: 1px solid #dcdcde;
+  border-radius: 999px;
+}
+.hbs-admin-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .hbs-admin-columns {
+    grid-template-columns: 1fr;
+  }
+}
+.hbs-admin-main,
+.hbs-admin-side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ---- Cards ---- */
+.hbs-card {
+  background: #fff;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  padding: 24px 26px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.hbs-card-compact {
+  padding: 18px 20px;
+}
+.hbs-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 18px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid #eee;
+  color: #1d2327;
+}
+.hbs-card-compact .hbs-card-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #757575;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+}
+.hbs-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eee;
+}
+.hbs-card-title-row .hbs-card-title {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.hbs-card-footer {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #eee;
+}
+
+/* ---- Form Rows ---- */
+.hbs-form-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f3f3f3;
+}
+.hbs-form-row:first-of-type {
+  padding-top: 4px;
+}
+.hbs-form-row:last-of-type {
+  border-bottom: none;
+}
+.hbs-form-row > label {
+  font-weight: 600;
+  font-size: 13px;
+  color: #1d2327;
+  padding-top: 8px;
+}
+.hbs-form-row-control input.regular-text,
+.hbs-form-row-control input[type="number"],
+.hbs-form-row-control input[type="email"],
+.hbs-form-row-control input[type="text"] {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 4px;
+  border: 1px solid #8c8f94;
+  padding: 7px 10px;
+  line-height: 1.6;
+  font-size: 14px;
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.hbs-form-row-control input:focus,
+.hbs-form-row-control textarea:focus,
+.hbs-form-row-control select:focus {
+  border-color: #e8521e;
+  box-shadow: 0 0 0 2px rgba(232, 82, 30, 0.15);
+  outline: none;
+}
+.hbs-form-row-control select {
+  border-radius: 4px;
+  border: 1px solid #8c8f94;
+  padding: 7px 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  min-width: 140px;
+}
+.hbs-form-row-control textarea {
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid #8c8f94;
+  padding: 7px 10px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.hbs-form-row-control .description {
+  margin: 6px 0 0;
+  color: #757575;
+  font-size: 12.5px;
+}
+@media (max-width: 600px) {
+  .hbs-form-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
+/* ---- Shortcode Box ---- */
+.hbs-shortcode-box {
+  display: block;
+  background: #f6f7f7;
+  border: 1px solid #dcdcde;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #d63384;
+  word-break: break-all;
+}
+
+/* ---- Price / Seats Rule Lists ---- */
+.hbs-price-list {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hbs-price-list li {
+  background: #f6f7f7;
+  border: 1px solid #dcdcde;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+}
+.hbs-price-list .hbs-price-rule-name {
+  font-weight: 600;
+  color: #1d2327;
+  flex: 1;
+}
+.hbs-price-list .hbs-price-rule-value {
+  color: #e8521e;
+  font-weight: 700;
+  margin: 0 16px;
+  white-space: nowrap;
+}
+.hbs-price-list .hbs-price-delete {
+  color: #b32d2e;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.hbs-price-list .hbs-price-delete:hover {
+  text-decoration: underline;
+  color: #8a2223;
+}
+.hbs-price-list .hbs-price-empty {
+  color: #757575;
+  font-style: italic;
+  justify-content: center;
+}
+
+/* ---- Inquiries List Table ---- */
+.hbs-admin-wrap table.widefat {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #dcdcde;
+}
+.hbs-admin-wrap .subsubsub {
+  margin: 10px 0 0;
+}
+.hbs-admin-wrap .subsubsub li a {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+.hbs-admin-wrap .subsubsub li a.current {
+  font-weight: 700;
+  background: #f0f0f1;
+}
+.hbs-admin-wrap .subsubsub li a:hover:not(.current) {
+  background: #f8f8f8;
+}
+.hbs-admin-wrap .tablenav {
+  margin-top: 12px;
+}
+.hbs-admin-wrap .tablenav-pages {
+  font-size: 13px;
+  color: #666;
+}
+.hbs-admin-wrap .tablenav-pages .button {
+  vertical-align: middle;
+  margin: 0 4px;
+}
+
+/* ---- Inquiry Status Badges ---- */
+.psi-new-badge {
+  background: #e8521e;
+  color: #fff;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  vertical-align: middle;
+  margin-left: 8px;
+  letter-spacing: 0.2px;
+}
+.psi-row-new td {
+  border-left: 3px solid #e8521e;
+  background: #fffbf9 !important;
+}
+.psi-status-new {
+  display: inline-block;
+  background: #e8521e;
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.psi-status-read {
+  display: inline-block;
+  background: #3b82f6;
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.psi-status-replied {
+  display: inline-block;
+  background: #16a34a;
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ---- Inquiry Action Buttons ---- */
+.psi-delete-btn {
+  color: #b32d2e !important;
+  border-color: #d63638 !important;
+}
+.psi-delete-btn:hover {
+  background: #b32d2e !important;
+  color: #fff !important;
+  border-color: #b32d2e !important;
+}
+
+/* ---- Inline form controls in cards (price/seats add rows) ---- */
+.hbs-form-row-control .button {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.hbs-form-row-control input[type="number"] {
+  width: 140px !important;
+  min-width: 120px;
+}
