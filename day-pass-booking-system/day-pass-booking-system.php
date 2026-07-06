@@ -12,6 +12,19 @@ define( 'DPBS_VERSION', '1.7.0' );
 define( 'DPBS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'DPBS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
+/* NEW: Private Suites support.
+   Service ID 357 = "Private Suites". When this service is selected in the
+   Day Pass Booking form, the form switches to Start/End date + Manager Seats
+   fields (like the Private Suites Inquiry plugin) and skips Razorpay payment
+   entirely - it just records an inquiry-style booking and emails the admin.
+   Everything else (regular day-pass services) is completely untouched. */
+define( 'DPBS_SUITE_SERVICE_ID', 357 );
+define( 'DPBS_DB_VERSION', '2' ); // bump when dpbs_bookings schema changes
+
+function dpbs_is_suite_service( $service_id ) {
+    return intval( $service_id ) === DPBS_SUITE_SERVICE_ID;
+}
+
 /* ==========================================================================
    1. CALENDAR & PRICE LOGIC
    ========================================================================== */
@@ -160,12 +173,14 @@ function dpbs_create_custom_tables() {
         city_id mediumint(9) NOT NULL,
         location_id mediumint(9) NOT NULL,
         booking_date date NOT NULL,
+        end_date date DEFAULT NULL,
         seats int NOT NULL,
         total_amount decimal(10,2) NOT NULL,
         customer_name varchar(255) NOT NULL,
         customer_email varchar(255) NOT NULL,
         customer_phone varchar(50) NOT NULL,
         customer_company varchar(255),
+        manager_seats varchar(10) DEFAULT NULL,
         razorpay_order_id varchar(255),
         razorpay_payment_id varchar(255),
         status varchar(20) DEFAULT 'pending',
@@ -173,6 +188,18 @@ function dpbs_create_custom_tables() {
         PRIMARY KEY  (id)
     ) $charset_collate;";
     dbDelta( $sql );
+}
+
+/* NEW: Runs dbDelta again (idempotent) on already-installed sites so the
+   `end_date` and `manager_seats` columns get added without requiring the
+   admin to deactivate/reactivate the plugin. Does nothing once up to date. */
+add_action( 'plugins_loaded', 'dpbs_maybe_upgrade_db' );
+function dpbs_maybe_upgrade_db() {
+    if ( get_option( 'dpbs_db_version' ) === DPBS_DB_VERSION ) {
+        return;
+    }
+    dpbs_create_custom_tables();
+    update_option( 'dpbs_db_version', DPBS_DB_VERSION );
 }
 
 
@@ -243,6 +270,19 @@ function dpbs_settings_page() {
                             <div class="cwf-form-row-control">
                                 <input type="number" name="dpbs_limited_seats" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_limited_seats', '3') ); ?>" required />
                                 <p class="description">If available seats fall to/below this number, date shows a Blue Dot automatically.</p>
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Private Suites Min Stay (days)</label>
+                            <div class="cwf-form-row-control">
+                                <input type="number" name="dpbs_suite_min_days" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_suite_min_days', '1') ); ?>" min="1" />
+                                <p class="description">Applies only to Service ID <?php echo DPBS_SUITE_SERVICE_ID; ?> (Private Suites), which uses a Start/End date range instead of a single day.</p>
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Private Suites Max Stay (days)</label>
+                            <div class="cwf-form-row-control">
+                                <input type="number" name="dpbs_suite_max_days" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_suite_max_days', '30') ); ?>" min="1" />
                             </div>
                         </div>
                         <div class="cwf-card-footer">
@@ -381,6 +421,8 @@ function dpbs_register_settings() {
     register_setting( 'dpbs_settings_group', 'dpbs_default_price' );
     register_setting( 'dpbs_settings_group', 'dpbs_default_seats' );
     register_setting( 'dpbs_settings_group', 'dpbs_limited_seats' );
+    register_setting( 'dpbs_settings_group', 'dpbs_suite_min_days' );
+    register_setting( 'dpbs_settings_group', 'dpbs_suite_max_days' );
 }
 
 /* ==========================================================================
@@ -465,7 +507,9 @@ function dpbs_render_bookings_table( $bookings ) {
                 <th>Service</th>
                 <th>Location</th>
                 <th>Date</th>
+                <th>End Date</th>
                 <th>Seats</th>
+                <th>Manager Seats</th>
                 <th>Amount</th>
                 <th>Order ID</th>
                 <th>Payment ID</th>
@@ -483,7 +527,9 @@ function dpbs_render_bookings_table( $bookings ) {
                     <td><?php echo esc_html( get_the_title( $b->service_id ) ); ?></td>
                     <td><?php echo esc_html( get_the_title( $b->location_id ) ); ?></td>
                     <td><?php echo esc_html( $b->booking_date ); ?></td>
+                    <td><?php echo ! empty( $b->end_date ) ? esc_html( $b->end_date ) : '—'; ?></td>
                     <td><?php echo esc_html( $b->seats ); ?></td>
+                    <td><?php echo ! empty( $b->manager_seats ) ? esc_html( $b->manager_seats ) : '—'; ?></td>
                     <td>₹<?php echo esc_html( $b->total_amount ); ?></td>
                     <td><?php echo esc_html( $b->razorpay_order_id ); ?></td>
                     <td><?php echo esc_html( $b->razorpay_payment_id ); ?></td>
@@ -557,7 +603,12 @@ if ( isset( $_GET['location'] ) ) {
         'razorpay_key'  => get_option('dpbs_razorpay_key'),
         'pre_location'  => $atts['location_id'],
         'pre_service'   => $atts['service_id'],
-        'pre_city'      => $atts['city_id']
+        'pre_city'      => $atts['city_id'],
+        /* NEW: lets frontend.js know which service ID should switch the form
+           into "Private Suites" mode (Start/End date + Manager Seats, no payment). */
+        'suite_service_id' => DPBS_SUITE_SERVICE_ID,
+        'suite_min_days'    => intval( get_option( 'dpbs_suite_min_days', 1 ) ),
+        'suite_max_days'    => intval( get_option( 'dpbs_suite_max_days', 30 ) ),
     ) );
 
     $services = get_posts( array( 'post_type' => 'service', 'numberposts' => -1, 'post_status' => 'publish' ) );
@@ -680,7 +731,26 @@ if ( isset( $_GET['location'] ) ) {
                         </div>
                         <small id="<?php echo $iid; ?>-seats-info" class="dpbs-seats-info"></small>
                     </div>
-                    
+
+                    <!-- NEW: Private Suites (service ID <?php echo DPBS_SUITE_SERVICE_ID; ?>) only fields.
+                         Hidden by default via inline style; frontend.js shows these and hides
+                         the single "Date" field above whenever this service is selected, and
+                         reverses it for every other service. Nothing here affects the regular
+                         day-pass flow. -->
+                    <div class="dpbs-field dpbs-suite-field" id="<?php echo $iid; ?>-suite-start-date-wrap" style="display:none;">
+                        <input type="date" name="suite_start_date" id="<?php echo $iid; ?>-suite-start-date" class="dpbs-suite-start-date" placeholder="Start Date" min="<?php echo esc_attr( date('Y-m-d') ); ?>" />
+                    </div>
+                    <div class="dpbs-field dpbs-suite-field" id="<?php echo $iid; ?>-suite-end-date-wrap" style="display:none;">
+                        <input type="date" name="suite_end_date" id="<?php echo $iid; ?>-suite-end-date" class="dpbs-suite-end-date" placeholder="End Date" min="<?php echo esc_attr( date('Y-m-d') ); ?>" />
+                    </div>
+                    <div class="dpbs-field dpbs-suite-field" id="<?php echo $iid; ?>-suite-manager-seats-wrap" style="display:none;">
+                        <div class="dpbs-select-wrap">
+                            <select name="manager_seats" id="<?php echo $iid; ?>-suite-manager-seats" class="dpbs-manager-seats">
+                                <option value="No">Manager Seats: No</option>
+                                <option value="Yes">Manager Seats: Yes</option>
+                            </select>
+                        </div>
+                    </div>
 
                     <div class="dpbs-form-footer dpbs-field-full">
                         <button type="submit" class="dpbs-submit-btn jd-bookaday-button">
@@ -991,7 +1061,7 @@ function dpbs_export_csv() {
 
     fputcsv( $output, array(
         'ID', 'Customer Name', 'Email', 'Phone', 'Company', 'Service', 'City', 'Location',
-        'Booking Date', 'Seats', 'Total Amount', 'Razorpay Order ID', 'Razorpay Payment ID',
+        'Booking Date', 'End Date', 'Seats', 'Manager Seats', 'Total Amount', 'Razorpay Order ID', 'Razorpay Payment ID',
         'Status', 'Created At'
     ) );
 
@@ -1006,7 +1076,9 @@ function dpbs_export_csv() {
             get_the_title( $b->city_id ),
             get_the_title( $b->location_id ),
             $b->booking_date,
+            $b->end_date,
             $b->seats,
+            $b->manager_seats,
             $b->total_amount,
             $b->razorpay_order_id,
             $b->razorpay_payment_id,
@@ -1149,5 +1221,131 @@ function dpbs_verify_payment() {
     } else {
         echo 'failed';
     }
+    wp_die();
+}
+
+/* ==========================================================================
+   8. PRIVATE SUITES (service ID 357) - NO PAYMENT INQUIRY FLOW
+   ==========================================================================
+   Mirrors the Private Suites Inquiry plugin: a Start/End date range, an
+   optional Manager Seats flag, and no Razorpay step at all - the row is
+   saved straight to dpbs_bookings (status 'inquiry') and the admin is
+   emailed. Completely separate from dpbs_create_booking/dpbs_verify_payment
+   above, so the regular paid day-pass flow is untouched. */
+add_action( 'wp_ajax_dpbs_submit_suite_booking', 'dpbs_submit_suite_booking' );
+add_action( 'wp_ajax_nopriv_dpbs_submit_suite_booking', 'dpbs_submit_suite_booking' );
+function dpbs_submit_suite_booking() {
+    check_ajax_referer( 'dpbs_nonce', 'nonce' );
+    global $wpdb;
+    $table = $wpdb->prefix . 'dpbs_bookings';
+
+    $service_id  = intval( $_POST['service'] );
+    $city_id     = intval( $_POST['city'] );
+    $location_id = intval( $_POST['location'] );
+    $full_name   = sanitize_text_field( $_POST['full_name'] );
+    $company     = sanitize_text_field( $_POST['company'] );
+    $email       = sanitize_email( $_POST['email'] );
+    $phone_raw   = sanitize_text_field( $_POST['phone'] );
+    $start_date  = sanitize_text_field( $_POST['start_date'] );
+    $end_date    = sanitize_text_field( $_POST['end_date'] );
+    $seats       = intval( $_POST['seats'] );
+    $manager     = sanitize_text_field( $_POST['manager_seats'] );
+
+    /* Only ever allow this no-payment path for the designated suite service. */
+    if ( ! dpbs_is_suite_service( $service_id ) ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Invalid service for this request.' ) );
+        wp_die();
+    }
+
+    if ( ! is_email( $email ) ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Please enter a valid email address.' ) );
+        wp_die();
+    }
+    $phone_clean = preg_replace( '/[\s\-\+\(\)]/', '', $phone_raw );
+    if ( ! preg_match( '/^[6-9]\d{9}$/', $phone_clean ) ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Please enter a valid 10-digit Indian phone number.' ) );
+        wp_die();
+    }
+    if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $start_date ) || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $end_date ) ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Invalid date format.' ) );
+        wp_die();
+    }
+    if ( $end_date < $start_date ) {
+        echo json_encode( array( 'success' => false, 'message' => 'End date cannot be before start date.' ) );
+        wp_die();
+    }
+    if ( $seats < 1 ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Please select at least 1 seat.' ) );
+        wp_die();
+    }
+    if ( ! dpbs_location_offers_service( $location_id, $service_id ) ) {
+        echo json_encode( array( 'success' => false, 'message' => 'This service is not available at the selected location.' ) );
+        wp_die();
+    }
+
+    $min_days = intval( get_option( 'dpbs_suite_min_days', 1 ) );
+    $max_days = intval( get_option( 'dpbs_suite_max_days', 30 ) );
+    $duration = ( strtotime( $end_date ) - strtotime( $start_date ) ) / 86400 + 1;
+    if ( $duration < $min_days ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Minimum stay is ' . $min_days . ' day' . ( $min_days > 1 ? 's' : '' ) . '.' ) );
+        wp_die();
+    }
+    if ( $duration > $max_days ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Maximum stay is ' . $max_days . ' days.' ) );
+        wp_die();
+    }
+
+    /* Same price source as regular day-pass bookings (service/location price
+       rules configured on this plugin's Settings page), just billed per
+       month like the Private Suites Inquiry plugin instead of per day. */
+    $price_per_seat = dpbs_calculate_price( $service_id, $location_id );
+    $months         = max( 1, ceil( $duration / 30 ) );
+    $total_amount   = $price_per_seat * $seats * $months;
+
+    $inserted = $wpdb->insert( $table, array(
+        'service_id'       => $service_id,
+        'city_id'          => $city_id,
+        'location_id'      => $location_id,
+        'booking_date'     => $start_date,
+        'end_date'         => $end_date,
+        'seats'            => $seats,
+        'total_amount'     => $total_amount,
+        'customer_name'    => $full_name,
+        'customer_email'   => $email,
+        'customer_phone'   => $phone_clean,
+        'customer_company' => $company,
+        'manager_seats'    => $manager ? $manager : 'No',
+        'razorpay_order_id'   => '',
+        'razorpay_payment_id' => '',
+        'status'           => 'inquiry', // no payment collected for suites
+    ) );
+
+    if ( $inserted === false ) {
+        echo json_encode( array( 'success' => false, 'message' => 'Database error. Please try again.' ) );
+        wp_die();
+    }
+
+    $admin_email = get_option( 'dpbs_admin_email', get_option( 'admin_email' ) );
+    $subject     = 'New Private Suite Inquiry — ' . $full_name . ' (' . $months . ' month' . ( $months > 1 ? 's' : '' ) . ')';
+
+    $message  = "A new Private Suite inquiry has been received (no payment collected).\n\n";
+    $message .= "Name: {$full_name}\n";
+    $message .= "Company: " . ( $company ?: '—' ) . "\n";
+    $message .= "Email: {$email}\n";
+    $message .= "Phone: {$phone_clean}\n";
+    $message .= "City: " . get_the_title( $city_id ) . "\n";
+    $message .= "Location: " . get_the_title( $location_id ) . "\n";
+    $message .= "Start Date: {$start_date}\n";
+    $message .= "End Date: {$end_date}\n";
+    $message .= "Duration: {$duration} days ({$months} month" . ( $months > 1 ? 's' : '' ) . ")\n";
+    $message .= "Seats: {$seats}\n";
+    $message .= "Manager Seats: {$manager}\n";
+    $message .= "Estimated Total: ₹" . number_format( $total_amount ) . "\n";
+    wp_mail( $admin_email, $subject, $message );
+
+    echo json_encode( array(
+        'success' => true,
+        'message' => 'Thank you for your inquiry! We will get back to you within 24 hours.',
+    ) );
     wp_die();
 }

@@ -42,6 +42,12 @@
       priceDisplay: container.find('[id$="-price-display"]'),
       formMessage: container.find(".dpbs-form-message"),
       submitBtn: container.find(".dpbs-submit-btn"),
+      // NEW: Private Suites (service 357) only fields. Empty jQuery sets on
+      // any form that doesn't render them - harmless everywhere else.
+      suiteFields: container.find(".dpbs-suite-field"),
+      suiteStartDate: container.find(".dpbs-suite-start-date"),
+      suiteEndDate: container.find(".dpbs-suite-end-date"),
+      managerSeats: container.find(".dpbs-manager-seats"),
     };
 
     this.init();
@@ -58,6 +64,40 @@
 
       this.bindEvents();
       this.loadPreselected();
+      this.toggleSuiteMode();
+    },
+
+    // =============================================
+    // PRIVATE SUITES MODE (service ID 357)
+    // =============================================
+    // Shows Start/End date + Manager Seats and hides the regular single
+    // "Date" field whenever the Private Suites service is selected; restores
+    // the regular field for every other service. Does not touch any other
+    // logic - the normal day-pass calendar/Razorpay flow is untouched.
+    isSuiteMode: function () {
+      var suiteId =
+        typeof dpbs_obj !== "undefined" ? dpbs_obj.suite_service_id : null;
+      if (!suiteId) return false;
+      return String(this.els.service.val()) === String(suiteId);
+    },
+
+    toggleSuiteMode: function () {
+      if (!this.els.suiteFields.length) return; // form has no suite markup
+
+      if (this.isSuiteMode()) {
+        this.closeCalendar();
+        this.els.dateField.hide();
+        this.els.date.prop("required", false);
+        this.els.suiteFields.show();
+        this.els.suiteStartDate.prop("required", true);
+        this.els.suiteEndDate.prop("required", true);
+      } else {
+        this.els.suiteFields.hide();
+        this.els.suiteStartDate.prop("required", false);
+        this.els.suiteEndDate.prop("required", false);
+        this.els.dateField.show();
+        this.els.date.prop("required", true);
+      }
     },
 
     bindEvents: function () {
@@ -75,6 +115,7 @@
       this.els.service.on("change", function () {
         self.selectedDate = "";
         self.els.date.val("");
+        self.toggleSuiteMode();
         self.loadCitiesForService(function () {
           self.loadLocations(function () {
             self.updatePrice();
@@ -94,7 +135,7 @@
         self.updateSeatsInfo();
       });
 
-         this.els.dateField.on("click.dpbs-date touchend.dpbs-date", function (e) {
+      this.els.dateField.on("click.dpbs-date touchend.dpbs-date", function (e) {
         if ($(e.target).closest(".dpbs-calendar-popover").length) return;
         if (e.type === "click" && self._touchHandled) return;
         if (e.type === "touchend") {
@@ -416,64 +457,73 @@
 
     _openMobileModal: function () {
       var self = this;
-      
+
       // 1. Find the scrollable parent (the Elementor off-canvas menu)
       var scrollParent = null;
       var $p = this.container.parent();
       while ($p.length && $p[0] !== document.body) {
-          if ($p[0].scrollHeight > $p[0].clientHeight) {
-              scrollParent = $p[0];
-              break;
-          }
-          $p = $p.parent();
+        if ($p[0].scrollHeight > $p[0].clientHeight) {
+          scrollParent = $p[0];
+          break;
+        }
+        $p = $p.parent();
       }
-      
+
       // 2. Lock scroll and snap to top so top:0 aligns perfectly with screen
       if (scrollParent) {
-          this._savedScrollTopModal = scrollParent.scrollTop;
-          scrollParent._dpbs_old_overflow = scrollParent.style.overflow;
-          scrollParent.style.overflow = 'hidden';
-          scrollParent.scrollTop = 0; 
-          this._scrollParentModal = scrollParent;
+        this._savedScrollTopModal = scrollParent.scrollTop;
+        scrollParent._dpbs_old_overflow = scrollParent.style.overflow;
+        scrollParent.style.overflow = "hidden";
+        scrollParent.scrollTop = 0;
+        this._scrollParentModal = scrollParent;
       }
-      
+
       // 3. Simple top:0 left:0 now works perfectly because we snapped scroll to 0
-      var m = '<div id="dpbs-mm-' + this.id + '" style="position:absolute;top:0;left:0;right:0;bottom:0;height:100vh;height:100dvh;z-index:2147483647;background:rgba(0,0,0,0.6);display:flex;flex-direction:column;align-items:center;justify-content:center;padding: 60px 16px 16px;box-sizing:border-box;"><div style="background:#fff;border-radius:16px;width:100%;max-width:340px;box-shadow:0 25px 60px rgba(0,0,0,0.4);overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;"><div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid #f0ede6;"><button type="button" class="dpbs-mm-prev" style="background:#f5f3ed;border:none;cursor:pointer;width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#444;">&laquo;</button><span class="dpbs-mm-title" style="font-weight:700;font-size:15px;color:#1f1f1f;"></span><button type="button" class="dpbs-mm-next" style="background:#f5f3ed;border:none;cursor:pointer;width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#444;">&raquo;</button></div><div style="padding:12px 16px 8px;"><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;margin-bottom:8px;"><div style="font-size:10px;font-weight:800;color:#e8521e;padding:4px 0;">Su</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Mo</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Tu</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">We</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Th</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Fr</div><div style="font-size:10px;font-weight:800;color:#e8521e;padding:4px 0;">Sa</div></div><div class="dpbs-mm-days" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;"></div></div><div style="padding:8px 16px 16px;text-align:center;"><button type="button" class="dpbs-mm-close" style="background:#e8521e;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Close</button></div></div></div>';
-      
+      var m =
+        '<div id="dpbs-mm-' +
+        this.id +
+        '" style="position:absolute;top:0;left:0;right:0;bottom:0;height:100vh;height:100dvh;z-index:2147483647;background:rgba(0,0,0,0.6);display:flex;flex-direction:column;align-items:center;justify-content:center;padding: 60px 16px 16px;box-sizing:border-box;"><div style="background:#fff;border-radius:16px;width:100%;max-width:340px;box-shadow:0 25px 60px rgba(0,0,0,0.4);overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;"><div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid #f0ede6;"><button type="button" class="dpbs-mm-prev" style="background:#f5f3ed;border:none;cursor:pointer;width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#444;">&laquo;</button><span class="dpbs-mm-title" style="font-weight:700;font-size:15px;color:#1f1f1f;"></span><button type="button" class="dpbs-mm-next" style="background:#f5f3ed;border:none;cursor:pointer;width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#444;">&raquo;</button></div><div style="padding:12px 16px 8px;"><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;margin-bottom:8px;"><div style="font-size:10px;font-weight:800;color:#e8521e;padding:4px 0;">Su</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Mo</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Tu</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">We</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Th</div><div style="font-size:10px;font-weight:800;color:#aaa;padding:4px 0;">Fr</div><div style="font-size:10px;font-weight:800;color:#e8521e;padding:4px 0;">Sa</div></div><div class="dpbs-mm-days" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;"></div></div><div style="padding:8px 16px 16px;text-align:center;"><button type="button" class="dpbs-mm-close" style="background:#e8521e;color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Close</button></div></div></div>';
+
       // Append to scroll parent so it's guaranteed not to be clipped
       var appendTarget = scrollParent || this.container;
       this._mobileModal = $(m).appendTo(appendTarget);
 
       var $modal = this._mobileModal;
-      
+
       $modal.on("click", ".dpbs-mm-prev", function (e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         self.calDate.setMonth(self.calDate.getMonth() - 1);
         self._loadCalendarIntoModal();
       });
-      
+
       $modal.on("click", ".dpbs-mm-next", function (e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         self.calDate.setMonth(self.calDate.getMonth() + 1);
         self._loadCalendarIntoModal();
       });
-      
+
       $modal.on("click", ".dpbs-mm-day:not(.dpbs-mm-disabled)", function (e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         self.selectedDate = $(this).data("date");
         self.els.date.val(self.selectedDate);
         self.els.calDays.find(".dpbs-cal-day").removeClass("is-selected");
-        self.els.calDays.find('.dpbs-cal-day[data-date="' + self.selectedDate + '"]').addClass("is-selected");
+        self.els.calDays
+          .find('.dpbs-cal-day[data-date="' + self.selectedDate + '"]')
+          .addClass("is-selected");
         self.closeCalendar();
         self.updateSeatsInfo();
         self.clearFormMessage();
       });
-      
+
       $modal.on("click", ".dpbs-mm-close", function (e) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         self.closeCalendar();
       });
-      
+
       $modal.on("click", function (e) {
         if ($(e.target).is("#dpbs-mm-" + self.id)) {
           self.closeCalendar();
@@ -618,10 +668,11 @@
         this._mobileModal.remove();
         this._mobileModal = null;
       }
-      
+
       // Unlock scroll and instantly restore the user's original scroll position
       if (this._scrollParentModal) {
-        this._scrollParentModal.style.overflow = this._scrollParentModal._dpbs_old_overflow || '';
+        this._scrollParentModal.style.overflow =
+          this._scrollParentModal._dpbs_old_overflow || "";
         this._scrollParentModal.scrollTop = this._savedScrollTopModal || 0;
         this._scrollParentModal = null;
       }
@@ -703,7 +754,7 @@
       var sid = this.els.service.val();
       var lid = this.els.location.val();
 
-      if (!sid || !lid) {
+      if (!sid || !lid || this.isSuiteMode()) {
         this.els.calDays.html("");
         return;
       }
@@ -840,6 +891,11 @@
       var self = this;
       this.clearFormMessage();
 
+      if (this.isSuiteMode()) {
+        this.handleSuiteFormSubmit();
+        return;
+      }
+
       var service = this.els.service.val();
       var city = this.els.city.val();
       var location = this.els.location.val();
@@ -944,6 +1000,124 @@
           } else {
             self.showFormMessage(res.message, "error");
             self.els.submitBtn.prop("disabled", false);
+          }
+        },
+      ).fail(function () {
+        self.showFormMessage(
+          "Something went wrong. Please try again.",
+          "error",
+        );
+        self.els.submitBtn.prop("disabled", false);
+      });
+    },
+
+    // =============================================
+    // PRIVATE SUITES SUBMISSION (service 357, no payment)
+    // =============================================
+    // Separate from handleFormSubmit's regular flow above: validates the
+    // Start/End date + Manager Seats fields, then posts straight to
+    // dpbs_submit_suite_booking and shows the result - no Razorpay step.
+    handleSuiteFormSubmit: function () {
+      var self = this;
+
+      var service = this.els.service.val();
+      var city = this.els.city.val();
+      var location = this.els.location.val();
+      var fullName = this.els.fullName.val().trim();
+      var phone = this.els.phone.val().trim();
+      var email = this.els.email.val().trim();
+      var seats = parseInt(this.els.seats.val()) || 0;
+      var company = this.els.company.val().trim();
+      var startDate = this.els.suiteStartDate.val();
+      var endDate = this.els.suiteEndDate.val();
+      var managerSeats = this.els.managerSeats.length
+        ? this.els.managerSeats.val()
+        : "No";
+
+      if (!city) {
+        this.showFormMessage("Please select a City.", "error");
+        this.els.city.focus();
+        return;
+      }
+      if (!location) {
+        this.showFormMessage("Please select a Location.", "error");
+        this.els.location.focus();
+        return;
+      }
+      if (!fullName || fullName.length < 2) {
+        this.showFormMessage("Please enter your Full Name.", "error");
+        this.els.fullName.focus();
+        return;
+      }
+      if (!phone) {
+        this.showFormMessage("Please enter your Phone Number.", "error");
+        this.els.phone.focus();
+        return;
+      }
+      if (!this.isValidIndianPhone(phone)) {
+        this.showFormMessage("Enter a valid 10-digit phone number.", "error");
+        this.els.phone.focus();
+        return;
+      }
+      if (!email) {
+        this.showFormMessage("Please enter your Email.", "error");
+        this.els.email.focus();
+        return;
+      }
+      if (!this.isValidEmail(email)) {
+        this.showFormMessage("Enter a valid Email.", "error");
+        this.els.email.focus();
+        return;
+      }
+      if (!startDate) {
+        this.showFormMessage("Please select a Start Date.", "error");
+        this.els.suiteStartDate.focus();
+        return;
+      }
+      if (!endDate) {
+        this.showFormMessage("Please select an End Date.", "error");
+        this.els.suiteEndDate.focus();
+        return;
+      }
+      if (endDate < startDate) {
+        this.showFormMessage("End date cannot be before start date.", "error");
+        return;
+      }
+      if (seats < 1) {
+        this.showFormMessage("Please select at least 1 seat.", "error");
+        this.els.seats.focus();
+        return;
+      }
+
+      this.showFormMessage("Processing...");
+      this.els.submitBtn.prop("disabled", true);
+
+      $.post(
+        dpbs_obj.ajax_url,
+        {
+          action: "dpbs_submit_suite_booking",
+          nonce: dpbs_obj.nonce,
+          service: service,
+          city: city,
+          location: location,
+          start_date: startDate,
+          end_date: endDate,
+          seats: seats,
+          full_name: fullName,
+          email: email,
+          phone: phone,
+          company: company,
+          manager_seats: managerSeats,
+        },
+        function (response) {
+          var res = JSON.parse(response);
+          self.els.submitBtn.prop("disabled", false);
+          if (res.success) {
+            self.showFormMessage(res.message, "success");
+            self.els.form[0].reset();
+            self.toggleSuiteMode();
+          } else {
+            self.showFormMessage(res.message, "error");
           }
         },
       ).fail(function () {
