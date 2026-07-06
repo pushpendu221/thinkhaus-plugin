@@ -639,7 +639,7 @@ if ( isset( $_GET['location'] ) ) {
                 <h2 class="dpbs-form-heading">Book a Day Pass!</h2>
 
                 <div class="dpbs-price-line">
-                    Price: ₹<span id="<?php echo $iid; ?>-price-display">0.00</span> / Seat
+                    Price: ₹<span id="<?php echo $iid; ?>-price-display">0.00</span> <span id="<?php echo $iid; ?>-price-suffix">/ Seat</span>
                 </div>
 
                 <form id="<?php echo $iid; ?>-booking-form" class="dpbs-booking-form dpbs-form-grid" data-instance="<?php echo $iid; ?>" novalidate>
@@ -694,7 +694,7 @@ if ( isset( $_GET['location'] ) ) {
                         <!-- <label>Email</label> -->
                         <input type="email" name="email" class="dpbs-email" required placeholder="Email" />
                     </div>
-                    <div class="dpbs-field">
+                  <div class="dpbs-field" id="<?php echo $iid; ?>-regular-date-wrap">
                         <!-- <label>Date</label> -->
                         <div class="dpbs-date-field">
                             <input type="text" name="date" id="<?php echo $iid; ?>-date" class="dpbs-date" required readonly placeholder="Date" />
@@ -732,25 +732,64 @@ if ( isset( $_GET['location'] ) ) {
                         <small id="<?php echo $iid; ?>-seats-info" class="dpbs-seats-info"></small>
                     </div>
 
-                    <!-- NEW: Private Suites (service ID <?php echo DPBS_SUITE_SERVICE_ID; ?>) only fields.
-                         Hidden by default via inline style; frontend.js shows these and hides
-                         the single "Date" field above whenever this service is selected, and
-                         reverses it for every other service. Nothing here affects the regular
-                         day-pass flow. -->
-                    <div class="dpbs-field dpbs-suite-field" id="<?php echo $iid; ?>-suite-start-date-wrap" style="display:none;">
-                        <input type="date" name="suite_start_date" id="<?php echo $iid; ?>-suite-start-date" class="dpbs-suite-start-date" placeholder="Start Date" min="<?php echo esc_attr( date('Y-m-d') ); ?>" />
+        <!-- NEW: Private Suites (service ID <?php echo DPBS_SUITE_SERVICE_ID; ?>) only fields.
+     Hidden by default via inline style; frontend.js shows these and hides
+     the single "Date" field above whenever this service is selected, and
+     reverses it for every other service. Nothing here affects the regular
+     day-pass flow. Uses identical calendar markup as the regular date field
+     so the UI is visually consistent. -->
+        <div class="dpbs-field dpbs-suite-field" id="<?php echo $iid; ?>-suite-start-date-wrap" style="display:none;">
+            <div class="dpbs-date-field dpbs-date-field--suite">
+                <input type="text" name="suite_start_date" id="<?php echo $iid; ?>-suite-start-date" class="dpbs-suite-start-date dpbs-suite-date-input" readonly placeholder="Start Date" />
+                <div class="dpbs-date-icon"><span class="dashicons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg></span></div>
+                <div class="dpbs-calendar-popover dpbs-cal-popover--suite-start" id="<?php echo $iid; ?>-suite-start-calendar-popover">
+                    <div class="dpbs-cal-header">
+                        <button type="button" class="dpbs-cal-nav-btn dpbs-suite-start-nav" data-dir="prev">&laquo;</button>
+                        <span class="dpbs-cal-title dpbs-suite-start-title"></span>
+                        <button type="button" class="dpbs-cal-nav-btn dpbs-suite-start-nav" data-dir="next">&raquo;</button>
                     </div>
-                    <div class="dpbs-field dpbs-suite-field" id="<?php echo $iid; ?>-suite-end-date-wrap" style="display:none;">
-                        <input type="date" name="suite_end_date" id="<?php echo $iid; ?>-suite-end-date" class="dpbs-suite-end-date" placeholder="End Date" min="<?php echo esc_attr( date('Y-m-d') ); ?>" />
-                    </div>
-                    <div class="dpbs-field dpbs-suite-field" id="<?php echo $iid; ?>-suite-manager-seats-wrap" style="display:none;">
-                        <div class="dpbs-select-wrap">
-                            <select name="manager_seats" id="<?php echo $iid; ?>-suite-manager-seats" class="dpbs-manager-seats">
-                                <option value="No">Manager Seats: No</option>
-                                <option value="Yes">Manager Seats: Yes</option>
-                            </select>
+                    <div class="dpbs-cal-content">
+                        <div class="dpbs-cal-grid dpbs-cal-dow-row">
+                            <div class="dpbs-cal-dow is-weekend">Su</div><div class="dpbs-cal-dow">Mo</div>
+                            <div class="dpbs-cal-dow">Tu</div><div class="dpbs-cal-dow">We</div>
+                            <div class="dpbs-cal-dow">Th</div><div class="dpbs-cal-dow">Fr</div>
+                            <div class="dpbs-cal-dow is-weekend">Sa</div>
                         </div>
+                        <div class="dpbs-cal-grid dpbs-cal-days dpbs-suite-start-days" id="<?php echo $iid; ?>-suite-start-cal-days"></div>
                     </div>
+                </div>
+            </div>
+        </div>
+        <div class="dpbs-field dpbs-suite-field" id="<?php echo $iid; ?>-suite-end-date-wrap" style="display:none;">
+            <div class="dpbs-date-field dpbs-date-field--suite">
+                <input type="text" name="suite_end_date" id="<?php echo $iid; ?>-suite-end-date" class="dpbs-suite-end-date dpbs-suite-date-input" readonly placeholder="End Date" />
+                <div class="dpbs-date-icon"><span class="dashicons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg></span></div>
+                <div class="dpbs-calendar-popover dpbs-cal-popover--suite-end" id="<?php echo $iid; ?>-suite-end-calendar-popover">
+                    <div class="dpbs-cal-header">
+                        <button type="button" class="dpbs-cal-nav-btn dpbs-suite-end-nav" data-dir="prev">&laquo;</button>
+                        <span class="dpbs-cal-title dpbs-suite-end-title"></span>
+                        <button type="button" class="dpbs-cal-nav-btn dpbs-suite-end-nav" data-dir="next">&raquo;</button>
+                    </div>
+                    <div class="dpbs-cal-content">
+                        <div class="dpbs-cal-grid dpbs-cal-dow-row">
+                            <div class="dpbs-cal-dow is-weekend">Su</div><div class="dpbs-cal-dow">Mo</div>
+                            <div class="dpbs-cal-dow">Tu</div><div class="dpbs-cal-dow">We</div>
+                            <div class="dpbs-cal-dow">Th</div><div class="dpbs-cal-dow">Fr</div>
+                            <div class="dpbs-cal-dow is-weekend">Sa</div>
+                        </div>
+                        <div class="dpbs-cal-grid dpbs-cal-days dpbs-suite-end-days" id="<?php echo $iid; ?>-suite-end-cal-days"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="dpbs-field dpbs-suite-field" id="<?php echo $iid; ?>-suite-manager-seats-wrap" style="display:none;">
+            <div class="dpbs-select-wrap">
+                <select name="manager_seats" id="<?php echo $iid; ?>-suite-manager-seats" class="dpbs-manager-seats">
+                    <option value="No">Manager Seats: No</option>
+                    <option value="Yes">Manager Seats: Yes</option>
+                </select>
+            </div>
+        </div>
 
                     <div class="dpbs-form-footer dpbs-field-full">
                         <button type="submit" class="dpbs-submit-btn jd-bookaday-button">

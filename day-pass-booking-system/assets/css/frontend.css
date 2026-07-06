@@ -36,7 +36,7 @@
   font-size: 27px;
   font-weight: 500 !important;
   line-height: 33px;
-  color: #281D18;
+  color: #281d18;
   margin: 0px;
   margin-bottom: 20px;
 }
@@ -47,7 +47,7 @@
   font-size: 16px;
   font-weight: 500;
   line-height: 23px;
-  color: #281D18;
+  color: #281d18;
 }
 
 /* ---- Field grid (2 columns) ---- */
@@ -454,6 +454,88 @@
 }
 .dpbs-submit-btn .dashicons {
   margin-left: 8px;
+}
+/* ==========================================================================
+   PRIVATE SUITES CALENDAR STYLING
+   Makes the suite date fields use the same visual style as the regular
+   day-pass calendar - same input appearance, same popover, same everything.
+   ========================================================================== */
+
+/* Suite date field wrapper - matches regular date field */
+.dpbs-date-field--suite {
+  position: relative;
+}
+
+/* Suite date inputs - identical styling to regular .dpbs-date input */
+.dpbs-suite-date-input {
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #d8d5cc;
+  border-radius: 10px;
+  padding: 14px 44px 14px 16px;
+  font-size: 15px;
+  color: #1f1f1f;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dpbs-suite-date-input:focus {
+  outline: none;
+  border-color: #e8521e;
+  box-shadow: 0 0 0 3px rgba(232, 82, 30, 0.12);
+}
+
+/* Suite calendar popovers - use same base styles as regular popover */
+.dpbs-cal-popover--suite-start,
+.dpbs-cal-popover--suite-end {
+  display: none;
+  width: 320px;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100vh - 20px);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  padding: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
+
+.dpbs-cal-popover--suite-start.is-open,
+.dpbs-cal-popover--suite-end.is-open {
+  display: block;
+}
+
+/* Date range highlight in end date calendar - shows selected start date range */
+.dpbs-cal-day.is-in-range {
+  background: rgba(232, 82, 30, 0.08);
+  border-radius: 0;
+}
+
+.dpbs-cal-day.is-range-start {
+  border-radius: 8px 0 0 8px;
+  background: rgba(232, 82, 30, 0.12);
+}
+
+.dpbs-cal-day.is-range-end {
+  border-radius: 0 8px 8px 0;
+  background: rgba(232, 82, 30, 0.12);
+}
+
+.dpbs-cal-day.is-range-start.is-range-end {
+  border-radius: 8px;
+  background: #e8521e;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(232, 82, 30, 0.3);
 }
 
 /* ---- Responsive ---- */
