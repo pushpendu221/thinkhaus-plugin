@@ -408,7 +408,7 @@
 .dpbs-form-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 14px;
   padding-top: 22px;
 }

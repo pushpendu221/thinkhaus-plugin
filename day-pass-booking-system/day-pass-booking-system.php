@@ -560,7 +560,7 @@ if ( isset( $_GET['location'] ) ) {
         'pre_city'      => $atts['city_id']
     ) );
 
-    $services = get_posts( array( 'post_type' => 'service', 'numberposts' => -1,'post__not_in' => array( 357 ), 'post_status' => 'publish' ) );
+    $services = get_posts( array( 'post_type' => 'service', 'numberposts' => -1, 'post_status' => 'publish' ) );
     $cities = get_posts( array( 'post_type' => 'city', 'post_parent' => 0, 'numberposts' => -1, 'post_status' => 'publish' ) );
 
     // If a service is preset (via singular page or URL param), only show cities that offer it
@@ -683,10 +683,10 @@ if ( isset( $_GET['location'] ) ) {
                     
 
                     <div class="dpbs-form-footer dpbs-field-full">
-                        <div class="dpbs-form-message" id="<?php echo $iid; ?>-form-message"></div>
                         <button type="submit" class="dpbs-submit-btn jd-bookaday-button">
                            Book Now <!-- <span class="dashicons dashicons-arrow-right-alt2"></span> -->
                         </button>
+                        <div class="dpbs-form-message" id="<?php echo $iid; ?>-form-message"></div>
                     </div>
                 </form>
             </div>
