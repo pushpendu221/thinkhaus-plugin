@@ -663,10 +663,11 @@ function hbs_render_booking_form( $atts ) {
                     <div class="hbs-locked-item"><strong>Service:</strong> <?php echo esc_html( $info_service_name ); ?></div>
                     <div class="hbs-locked-item"><strong>City:</strong> <?php echo esc_html( $info_city_name ); ?></div>
                     <div class="hbs-locked-item"><strong>Location:</strong> <?php echo esc_html( $info_location_name ); ?></div>
-                    <div class="hbs-locked-item"><strong>Price:</strong> ₹<?php echo esc_html( number_format( $info_price, 2 ) ); ?>/hr<?php if ( hbs_is_tax_enabled() ) : ?> <span class="hbs-tax-note" style="opacity:.75;font-size:.9em;">+ <?php echo esc_html( hbs_get_tax_percentage() ); ?>% <?php echo esc_html( hbs_get_tax_label() ); ?></span><?php endif; ?></div>
+                    <div class="hbs-locked-item"><strong>Price:</strong> ₹<?php echo esc_html( number_format( $info_price, 2 ) ); ?>/hr<?php if ( hbs_is_tax_enabled() ) : ?> <span class="hbs-tax-note">+ <?php echo esc_html( hbs_get_tax_percentage() ); ?>% <?php echo esc_html( hbs_get_tax_label() ); ?></span><?php endif; ?></div>
+                    <div class="hbs-locked-item" id="hbs-price-breakdown" style="display:none;"></div>
                 </div>
                 <div class="hbs-price-tag" style="display:none;">Price: ₹<span id="hbs-price-display">0.00</span> / Hour <?php if ( hbs_is_tax_enabled() ) : ?><span class="hbs-tax-note" id="hbs-tax-note" style="opacity:.75;font-size:.9em;">+ <?php echo esc_html( hbs_get_tax_percentage() ); ?>% <?php echo esc_html( hbs_get_tax_label() ); ?></span><?php endif; ?></div>
-                <div class="hbs-price-breakdown" id="hbs-price-breakdown" style="display:none;font-size:.9em;margin-top:6px;line-height:1.6;"></div>
+                
             <?php else: ?>
                 <div class="hbs-price-tag">Price: ₹<span id="hbs-price-display">0.00</span> / Hour <?php if ( hbs_is_tax_enabled() ) : ?><span class="hbs-tax-note" id="hbs-tax-note" style="opacity:.75;font-size:.9em;">+ <?php echo esc_html( hbs_get_tax_percentage() ); ?>% <?php echo esc_html( hbs_get_tax_label() ); ?></span><?php endif; ?></div>
                 <div class="hbs-price-breakdown" id="hbs-price-breakdown" style="display:none;font-size:.9em;margin-top:6px;line-height:1.6;"></div>

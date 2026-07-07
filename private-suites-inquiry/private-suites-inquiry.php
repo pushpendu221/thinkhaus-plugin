@@ -587,7 +587,7 @@ function psi_render_inquiry_form( $atts ) {
 
                 <!-- Service: Hardcoded to Private Suites (357), disabled so user can't change -->
                 <input type="hidden" name="service" id="psi-service" value="357" />
-                <div class="psi-field">
+                <div class="psi-field" style="display:none;">
                     <!-- <label>Service</label> -->
                     <div class="psi-select-wrap">
                         <select disabled>
@@ -597,7 +597,7 @@ function psi_render_inquiry_form( $atts ) {
                 </div>
 
                 <?php if ( $show_location && $cities ) : ?>
-                <div class="psi-field">
+                <div class="psi-field" style="display:none;">
                     <!-- <label>City</label> -->
                     <div class="psi-select-wrap">
                         <select name="city" id="psi-city" required <?php echo $is_locked ? 'disabled' : ''; ?>>
@@ -611,7 +611,7 @@ function psi_render_inquiry_form( $atts ) {
                         <input type="hidden" name="city" value="<?php echo esc_attr($atts['city_id']); ?>" />
                     <?php endif; ?>
                 </div>
-                <div class="psi-field">
+                <div class="psi-field" style="display:none;">
                     <!-- <label>Location</label> -->
                     <div class="psi-select-wrap">
                         <select name="location" id="psi-location" required <?php echo $is_locked ? 'disabled' : ''; ?>>

@@ -508,10 +508,6 @@ function sds_render_shortcode( array $atts ): string {
                     <img src="<?php echo esc_url( $atts['play_icon'] ); ?>" alt="Play">
                 </button>
             </div>
-        <?php else : ?>
-            <div class="video-wrapper video-wrapper--no-video">
-                <img class="poster" src="<?php echo $video_poster; ?>" alt="Service preview">
-            </div>
         <?php endif; ?>
         <div id="sticky-stop"></div>
     </div><!-- .singleservice-container -->
