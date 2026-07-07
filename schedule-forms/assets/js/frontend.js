@@ -133,17 +133,25 @@
   }
 
   function positionPopover(popover, input) {
-    var rect = input.getBoundingClientRect();
+    var container = popover.parentElement;
+    var inputRect = input.getBoundingClientRect();
+    var containerRect = container.getBoundingClientRect();
+
     var popWidth = 320;
     var popHeight = popover.offsetHeight || 320;
 
-    var top = rect.bottom + 8;
-    var left = rect.left;
+    var top = inputRect.bottom - containerRect.top + 8;
+    var left = inputRect.left - containerRect.left;
 
-    if (left + popWidth > window.innerWidth - 16)
-      left = window.innerWidth - popWidth - 16;
-    if (top + popHeight > window.innerHeight - 16)
-      top = rect.top - popHeight - 8;
+    // Prevent right overflow
+    if (left + popWidth > containerRect.width - 16) {
+      left = containerRect.width - popWidth - 16;
+    }
+    // Prevent bottom overflow — flip above
+    if (top + popHeight > containerRect.height - 16) {
+      top = inputRect.top - containerRect.top - popHeight - 8;
+    }
+    // Prevent left/top overflow
     if (left < 16) left = 16;
     if (top < 16) top = 16;
 
@@ -156,9 +164,10 @@
     popover._cwfWrap = wrap;
     popover._cwfInput = input;
 
-    // Always ensure it's in the body for safe z-indexing.
-    // If it's already there, this does nothing visually.
-    document.body.appendChild(popover);
+    // Append to the Elementor popup wrapper if inside one, otherwise body.
+    // This stops Elementor's "click outside to close" logic from firing.
+    var container = wrap.closest(".elementor-popup-modal") || document.body;
+    container.appendChild(popover);
 
     initPopoverStructure(popover, state);
 
@@ -273,7 +282,9 @@
       "</div>" +
       "</div>";
 
-    (sp || document.body).appendChild(modal);
+    var modalContainer =
+      wrap.closest(".elementor-popup-modal") || sp || document.body;
+    modalContainer.appendChild(modal);
     mobileModalMap.set(modal, wrap);
     state.mobileModal = modal;
 
