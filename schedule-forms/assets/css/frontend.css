@@ -4,9 +4,7 @@
 
 /* ---- Inline form wrapper (replaces modal — form renders directly on page) ---- */
 .cwf-inline-form-wrap {
-  /* background: #eceae3; */
   border-radius: 20px;
-  /* padding: 40px 44px 32px; */
   max-width: 760px;
   width: 100%;
   box-sizing: border-box;
@@ -88,7 +86,7 @@
   font-size: 27px;
   font-weight: 500 !important;
   line-height: 33px;
-  color: #281D18;
+  color: #281d18;
   margin: 0px;
   margin-bottom: 20px;
 }
@@ -165,7 +163,8 @@
 .cwf-date-field input {
   cursor: pointer;
   background: #fff;
-  padding-left: 44px;
+  padding-left: 16px;
+  padding-right: 44px;
 }
 .cwf-date-icon {
   position: absolute;
@@ -183,17 +182,22 @@
   pointer-events: none;
 }
 
+/* =====================================================
+   DESKTOP CALENDAR POPOVER (Matches DPBS styling)
+   ===================================================== */
 .cwf-calendar-popover {
   display: none;
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 10;
+  position: fixed; /* Changed from absolute */
+  z-index: 99999999;
   width: 320px;
   background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
-  padding: 16px;
+  border-radius: 16px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+  padding: 0; /* Reset padding, handle internally */
+  overflow: hidden;
+  font-family: inherit;
+  transform: none;
+  -webkit-transform: none;
 }
 .cwf-calendar-popover.is-open {
   display: block;
@@ -203,7 +207,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #f0ede6;
 }
 .cwf-cal-header .cwf-cal-title {
   font-weight: 700;
@@ -211,38 +216,53 @@
   color: #1f1f1f;
 }
 .cwf-cal-nav-btn {
-  background: none;
+  background: #f5f3ed;
   border: none;
   cursor: pointer;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-size: 16px;
   color: #444;
+  transition: background 0.15s ease;
 }
 .cwf-cal-nav-btn:hover {
-  background: #f1f1f1;
+  background: #e8e5dc;
 }
 
-.cwf-cal-grid {
+.cwf-cal-body {
+  padding: 12px 16px 16px;
+}
+
+/* Separated DOW Row */
+.cwf-cal-dow-row {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 2px;
   text-align: center;
+  margin-bottom: 8px;
 }
 .cwf-cal-dow {
-  font-size: 11px;
-  font-weight: 700;
-  color: #999;
-  padding-bottom: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #aaa;
+  padding: 4px 0;
   text-transform: uppercase;
 }
 .cwf-cal-dow.is-weekend {
   color: #e8521e;
 }
 
+/* Day Grid */
+.cwf-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
 .cwf-cal-day {
   position: relative;
   font-size: 13px;
@@ -253,6 +273,7 @@
   background: none;
   border: none;
   width: 100%;
+  transition: background 0.15s ease;
 }
 .cwf-cal-day:hover:not(.is-disabled):not(.is-empty) {
   background: #f1efe9;
@@ -265,13 +286,15 @@
   color: #e8521e;
 }
 .cwf-cal-day.is-disabled {
-  color: #c9c9c9;
+  color: #d4d0c8;
   cursor: not-allowed;
+  text-decoration: line-through;
 }
 .cwf-cal-day.is-selected {
   background: #e8521e;
   color: #fff;
   font-weight: 700;
+  box-shadow: 0 3px 10px rgba(232, 82, 30, 0.3);
 }
 .cwf-cal-day .cwf-dot {
   position: absolute;
@@ -287,6 +310,141 @@
 }
 .cwf-cal-day .cwf-dot.cwf-dot-full {
   background: #ef4444;
+}
+
+/* =====================================================
+   MOBILE CALENDAR MODAL (Matches DPBS styling)
+   ===================================================== */
+.cwf-mobile-modal {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 2147483647;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 16px 16px;
+  box-sizing: border-box;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu,
+    Cantarell, "Helvetica Neue", sans-serif;
+}
+
+.cwf-mm-card {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 340px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.cwf-mm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid #f0ede6;
+}
+
+.cwf-mm-nav {
+  background: #f5f3ed;
+  border: none;
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #444;
+}
+
+.cwf-mm-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #1f1f1f;
+}
+
+.cwf-mm-body {
+  padding: 12px 16px 8px;
+}
+
+.cwf-mm-dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.cwf-mm-dow {
+  font-size: 10px;
+  font-weight: 800;
+  color: #aaa;
+  padding: 4px 0;
+}
+.cwf-mm-dow.is-weekend {
+  color: #e8521e;
+}
+
+.cwf-mm-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+
+/* Base styles for mobile day divs (JS applies specific colors inline) */
+.cwf-mm-day {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  color: #2b2b2b;
+}
+
+.cwf-mm-disabled {
+  color: #d4d0c8 !important;
+  cursor: not-allowed !important;
+  text-decoration: line-through;
+}
+
+.cwf-mm-selected {
+  background: #e8521e !important;
+  color: #fff !important;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(232, 82, 30, 0.3);
+}
+
+.cwf-mm-footer {
+  padding: 8px 16px 16px;
+  text-align: center;
+}
+
+.cwf-mm-close-btn {
+  background: #e8521e;
+  color: #fff;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.cwf-mm-close-btn:hover {
+  background: #cf4716;
 }
 
 /* ---- Footer / submit ---- */
@@ -320,6 +478,7 @@
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  gap: 6px;
 }
 .cwf-submit-btn:hover {
   background: #cf4716;
@@ -329,11 +488,10 @@
   cursor: default;
 }
 
-@media (max-width: 768px){
-   .cwf-form-heading {
-        font-size: 26px;
-    }
-
+@media (max-width: 768px) {
+  .cwf-form-heading {
+    font-size: 26px;
+  }
 }
 
 @media (max-width: 600px) {
@@ -342,10 +500,5 @@
   }
   .cwf-modal {
     padding: 28px 20px 24px;
-  }
-  .cwf-calendar-popover {
-    width: 100%;
-    left: 0;
-    right: 0;
   }
 }

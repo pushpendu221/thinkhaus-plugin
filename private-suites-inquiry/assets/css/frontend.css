@@ -65,7 +65,7 @@
   font-size: 34px;
   font-weight: 800;
   color: #1a1a1a;
-  margin: 0 0 30px;
+  margin: 0 0 20px;
   letter-spacing: -0.8px;
   line-height: 1.15;
 }
@@ -87,7 +87,7 @@
 .psi-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px 24px;
+  gap: 10px;
 }
 
 .psi-field-full {

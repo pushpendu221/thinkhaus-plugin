@@ -168,6 +168,19 @@ jQuery(document).ready(function ($) {
   }
 
   // Generic Save Rule (Handles Service Price, Location Price, and Rooms)
+  // Maps each rule "type" to its actual list container + amount field IDs in the DOM,
+  // since they don't follow a consistent "hbs_{type}_..." naming pattern.
+  const ruleListId = {
+    svc: "hbs_svc_price_list",
+    loc: "hbs_loc_price_list",
+    room: "hbs_room_list",
+  };
+  const ruleAmountId = {
+    svc: "hbs_svc_price_amount",
+    loc: "hbs_loc_price_amount",
+    room: "hbs_room_amount",
+  };
+
   function saveRule(btnId, type, extraFields) {
     $(btnId).click(function () {
       let data = {
@@ -185,9 +198,8 @@ jQuery(document).ready(function ($) {
       )
         return alert("Please fill all fields.");
       $.post(hbs_admin_obj.ajax_url, data, (h) => {
-        $("#hbs_" + type + "_list").html(h);
-        if (type !== "svc") $("#hbs_" + type + "_amount").val("");
-        else $("#svc_price_amount").val("");
+        $("#" + ruleListId[type]).html(h);
+        $("#" + ruleAmountId[type]).val("");
       });
     });
   }
@@ -226,7 +238,7 @@ jQuery(document).ready(function ($) {
         id: i,
       },
       (h) => {
-        $("#hbs_" + t + "_list").html(h);
+        $("#" + ruleListId[t]).html(h);
       },
     );
   });

@@ -128,8 +128,8 @@ function hbs_settings_page() {
                     <div class="hbs-form-row" style="border-bottom: none; padding-bottom: 0;">
                         <label>Add Price Rule</label>
                         <div class="hbs-form-row-control" style="display:flex; gap:10px; align-items:center;">
-                            <select id="hbs_svc_price_service" style="flex:1;"><option value="">Select Service</option><?php foreach($services as $s) echo "<option value='{$s->ID}'>{$s->post_title}</option>"; ?></select>
-                            <input type="number" id="hbs_svc_price_amount" placeholder="₹ Price" style="width:120px;" />
+                            <select id="hbs_svc_price_service" data-key="service_id" style="flex:1;"><option value="">Select Service</option><?php foreach($services as $s) echo "<option value='{$s->ID}'>{$s->post_title}</option>"; ?></select>
+                            <input type="number" id="hbs_svc_price_amount" data-key="price" placeholder="₹ Price" style="width:120px;" />
                             <button type="button" class="button" id="hbs_save_svc_price">Add / Update</button>
                         </div>
                     </div>
@@ -144,10 +144,10 @@ function hbs_settings_page() {
                     <div class="hbs-form-row" style="border-bottom: none; padding-bottom: 0;">
                         <label>Add Price Rule</label>
                         <div class="hbs-form-row-control" style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
-                            <select id="hbs_loc_price_service" style="flex:1; min-width: 150px;"><option value="">Select Service</option><?php foreach($services as $s) echo "<option value='{$s->ID}'>{$s->post_title}</option>"; ?></select>
-                            <select id="hbs_loc_price_city" style="flex:1; min-width: 120px;"><option value="">Select City</option><?php foreach($cities as $c) echo "<option value='{$c->ID}'>{$c->post_title}</option>"; ?></select>
-                            <select id="hbs_loc_price_location" style="flex:1; min-width: 150px;"><option value="">Select Location</option></select>
-                            <input type="number" id="hbs_loc_price_amount" placeholder="₹ Price" style="width:120px;" />
+                            <select id="hbs_loc_price_service" data-key="service_id" style="flex:1; min-width: 150px;"><option value="">Select Service</option><?php foreach($services as $s) echo "<option value='{$s->ID}'>{$s->post_title}</option>"; ?></select>
+                            <select id="hbs_loc_price_city" data-key="city_id" style="flex:1; min-width: 120px;"><option value="">Select City</option><?php foreach($cities as $c) echo "<option value='{$c->ID}'>{$c->post_title}</option>"; ?></select>
+                            <select id="hbs_loc_price_location" data-key="location_id" style="flex:1; min-width: 150px;"><option value="">Select Location</option></select>
+                            <input type="number" id="hbs_loc_price_amount" data-key="price" placeholder="₹ Price" style="width:120px;" />
                             <button type="button" class="button" id="hbs_save_loc_price">Add / Update</button>
                         </div>
                     </div>
