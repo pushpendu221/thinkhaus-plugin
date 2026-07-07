@@ -241,7 +241,57 @@
   color: #ccc;
   text-align: left;
 }
+/* ==========================================================================
+   LOCATIONS TITLE — "Select Location" heading shown after city click
+   ========================================================================== */
 
+.cfs-locations-title {
+  margin: 0 0 24px 0;
+  padding: 0 0 14px 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  position: relative;
+  display: none;
+}
+
+/* Show title only when areas are visible */
+.cityfilter-areas.areas-visible .cfs-locations-title {
+  display: block;
+}
+
+/* Decorative underline accent */
+.cfs-locations-title::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 50px;
+  height: 3px;
+  background: #e6a020;
+  border-radius: 2px;
+}
+
+/* Subtle accent on the text itself */
+.cfs-locations-title-text {
+  position: relative;
+}
+
+/* Optional: Add a small icon before text using pseudo-element */
+.cfs-locations-title-text::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: #e6a020;
+  border-radius: 2px;
+  margin-right: 10px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
 /* ==========================================================================
    OWL NAV & DOTS
    ========================================================================== */

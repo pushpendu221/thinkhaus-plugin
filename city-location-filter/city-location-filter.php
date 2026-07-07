@@ -294,6 +294,9 @@ function cfs_render_shortcode( array $atts ): string {
 
                 <!-- ── LOCATION GRIDS (hidden until city clicked) ─────── -->
                 <div class="cityfilter-areas" id="<?php echo esc_attr( $uid ); ?>-areas">
+                    <h3 class="cfs-locations-title">
+                        <span class="cfs-locations-title-text">Select Location</span>
+                    </h3>
 
                     <?php foreach ( $cities as $city ) : ?>
                         <div class="area-grid" id="<?php echo esc_attr( $city['slug'] ); ?>">

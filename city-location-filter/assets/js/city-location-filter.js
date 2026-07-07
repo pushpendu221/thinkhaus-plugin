@@ -210,6 +210,10 @@
             "</div>" +
             "</div>";
 
+          if (idx === 0) {
+            areasHTML +=
+              '<h3 class="cfs-locations-title"><span class="cfs-locations-title-text">Select Location</span></h3>';
+          }
           areasHTML += '<div class="area-grid" id="' + city.slug + '">';
           $.each(city.locations, function (j, loc) {
             var locImg = loc.image
