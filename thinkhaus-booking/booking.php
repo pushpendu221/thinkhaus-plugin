@@ -9,7 +9,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'HBS_VERSION', '2.2.0' );
+define( 'HBS_VERSION', '2.3.0' );
 define( 'HBS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'HBS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -54,6 +54,55 @@ function hbs_get_max_rooms( $service_id, $location_id ) {
     return intval(get_option('hbs_max_rooms', '5'));
 }
 
+/**
+ * Whether tax should be collected on bookings, and at what rate.
+ * A single global tax rate/label is used across all services & locations.
+ */
+function hbs_is_tax_enabled() {
+    return get_option( 'hbs_tax_enabled', '0' ) === '1';
+}
+
+function hbs_get_tax_percentage() {
+    return hbs_is_tax_enabled() ? floatval( get_option( 'hbs_tax_percentage', '0' ) ) : 0.0;
+}
+
+function hbs_get_tax_label() {
+    $label = get_option( 'hbs_tax_label', 'GST' );
+    return $label !== '' ? $label : 'GST';
+}
+
+/**
+ * Given a pre-tax subtotal, returns the tax amount to charge, rounded to
+ * 2 decimal places (paise-level precision, matching Razorpay's expectations).
+ */
+function hbs_calculate_tax_amount( $subtotal ) {
+    $subtotal = floatval( $subtotal );
+    $rate = hbs_get_tax_percentage();
+    if ( $rate <= 0 ) return 0.0;
+    return round( $subtotal * ( $rate / 100 ), 2 );
+}
+
+/**
+ * Convenience helper: returns an array with subtotal, tax_percentage,
+ * tax_amount and total (subtotal + tax) for a given service/location/
+ * hours/rooms combination. This is the single source of truth for pricing
+ * so the create/verify flows and the price-preview AJAX endpoint always
+ * agree with each other.
+ */
+function hbs_get_price_breakdown( $service_id, $location_id, $hours, $rooms ) {
+    $unit_price = hbs_calculate_price( $service_id, $location_id );
+    $subtotal   = round( $unit_price * floatval( $hours ) * floatval( $rooms ), 2 );
+    $tax_amount = hbs_calculate_tax_amount( $subtotal );
+    return array(
+        'unit_price'     => $unit_price,
+        'subtotal'       => $subtotal,
+        'tax_percentage' => hbs_get_tax_percentage(),
+        'tax_label'      => hbs_get_tax_label(),
+        'tax_amount'     => $tax_amount,
+        'total'          => round( $subtotal + $tax_amount, 2 ),
+    );
+}
+
 /* ==========================================================================
    2. DATABASE CREATION
    ========================================================================== */
@@ -62,8 +111,54 @@ register_activation_hook( __FILE__, 'hbs_create_custom_tables' );
 function hbs_create_custom_tables() {
     global $wpdb; require_once( ABSPATH . 'wp-admin/includes/upgrade.php' ); $charset_collate = $wpdb->get_charset_collate();
     $table_name = $wpdb->prefix . 'hbs_bookings';
-    $sql = "CREATE TABLE $table_name ( id mediumint(9) NOT NULL AUTO_INCREMENT, service_id mediumint(9) NOT NULL, city_id mediumint(9) NOT NULL, location_id mediumint(9) NOT NULL, booking_date date NOT NULL, seats int NOT NULL DEFAULT 1, hours int NOT NULL DEFAULT 1, rooms int NOT NULL DEFAULT 1, total_amount decimal(10,2) NOT NULL, customer_name varchar(255) NOT NULL, customer_email varchar(255) NOT NULL, customer_phone varchar(50) NOT NULL, customer_company varchar(255), razorpay_order_id varchar(255), razorpay_payment_id varchar(255), status varchar(20) DEFAULT 'pending', created_at datetime DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY  (id) ) $charset_collate;";
-    dbDelta( $sql ); update_option( 'hbs_db_version', HBS_VERSION );
+    $sql = "CREATE TABLE $table_name ( id mediumint(9) NOT NULL AUTO_INCREMENT, service_id mediumint(9) NOT NULL, city_id mediumint(9) NOT NULL, location_id mediumint(9) NOT NULL, booking_date date NOT NULL, seats int NOT NULL DEFAULT 1, hours int NOT NULL DEFAULT 1, rooms int NOT NULL DEFAULT 1, subtotal_amount decimal(10,2) NOT NULL DEFAULT 0.00, tax_percentage decimal(5,2) NOT NULL DEFAULT 0.00, tax_amount decimal(10,2) NOT NULL DEFAULT 0.00, total_amount decimal(10,2) NOT NULL, customer_name varchar(255) NOT NULL, customer_email varchar(255) NOT NULL, customer_phone varchar(50) NOT NULL, customer_company varchar(255), razorpay_order_id varchar(255), razorpay_payment_id varchar(255), status varchar(20) DEFAULT 'pending', created_at datetime DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY  (id) ) $charset_collate;";
+    dbDelta( $sql );
+
+    // Don't just trust that dbDelta worked — verify the columns this
+    // version needs are actually present before marking the migration
+    // complete. Without this check, a silent dbDelta failure (wrong DB
+    // privileges, unexpected context, etc.) would still flag the DB as
+    // "up to date" and the missing-column error would recur on every
+    // booking forever, since hbs_maybe_upgrade_db() would never retry.
+    $existing_columns = $wpdb->get_col( "DESC $table_name", 0 );
+    $required_columns = array( 'subtotal_amount', 'tax_percentage', 'tax_amount' );
+    $missing = array_diff( $required_columns, (array) $existing_columns );
+
+    if ( empty( $missing ) ) {
+        update_option( 'hbs_db_version', HBS_VERSION );
+    } else {
+        error_log( '[ThinkHaus] DB migration incomplete — still missing columns: ' . implode( ', ', $missing ) . '. Will retry on next admin page load.' );
+    }
+}
+
+/**
+ * Runs dbDelta again (safe/idempotent — it only adds what's missing) whenever
+ * the stored DB version doesn't match the plugin version. This makes sure
+ * sites that already had this plugin active before the tax columns were
+ * introduced get them added automatically, without needing to deactivate/
+ * reactivate the plugin.
+ */
+/**
+ * Runs dbDelta again (safe/idempotent — it only adds what's missing) whenever
+ * the stored DB version doesn't match the plugin version. This makes sure
+ * sites that already had this plugin active before the tax columns were
+ * introduced get them added automatically, without needing to deactivate/
+ * reactivate the plugin.
+ *
+ * IMPORTANT: this is hooked to 'admin_menu' (fires only when WordPress
+ * builds the wp-admin dashboard for a real admin page view) rather than
+ * 'plugins_loaded' or 'admin_init' — both of those also fire on every single
+ * admin-ajax.php request, including the front-end booking/payment AJAX
+ * calls. Running dbDelta() (which requires wp-admin/includes/upgrade.php)
+ * on those requests risked stray PHP notices being printed into the AJAX
+ * response body, which would silently break the exact-string "verified"
+ * check the frontend relies on after a successful payment.
+ */
+add_action( 'admin_menu', 'hbs_maybe_upgrade_db', 5 );
+function hbs_maybe_upgrade_db() {
+    if ( get_option( 'hbs_db_version' ) !== HBS_VERSION ) {
+        hbs_create_custom_tables();
+    }
 }
 
 /* ==========================================================================
@@ -97,6 +192,21 @@ function hbs_settings_page() {
                         <div class="hbs-form-row"><label>Global Default Max Rooms</label><div class="hbs-form-row-control"><input type="number" name="hbs_max_rooms" class="regular-text" value="<?php echo esc_attr( get_option('hbs_max_rooms', '5') ); ?>" min="1" required /><p class="description">Fallback if no specific location room limit is set below.</p></div></div>
                         <div class="hbs-form-row"><label>Limited Threshold (Rooms)</label><div class="hbs-form-row-control"><input type="number" name="hbs_limited_seats" class="regular-text" value="<?php echo esc_attr( get_option('hbs_limited_seats', '2') ); ?>" required /><p class="description">Shows Blue Dot & limits dropdown if available rooms fall to/below this number. Also applies when manually marking a date as "Partially Booked".</p></div></div>
                         <div class="hbs-form-row"><label>Max Booking Hours</label><div class="hbs-form-row-control"><input type="number" name="hbs_max_hours" class="regular-text" value="<?php echo esc_attr( get_option('hbs_max_hours', '8') ); ?>" min="1" required /></div></div>
+                        <div class="hbs-card-footer"><?php submit_button('Save Settings', 'primary', 'submit', false); ?></div>
+                    </div>
+                    <div class="hbs-card">
+                        <div class="hbs-card-title">Tax</div>
+                        <div class="hbs-form-row">
+                            <label>Collect Tax</label>
+                            <div class="hbs-form-row-control">
+                                <label style="font-weight:normal;">
+                                    <input type="checkbox" name="hbs_tax_enabled" value="1" <?php checked( get_option('hbs_tax_enabled', '0'), '1' ); ?> />
+                                    Add tax to the booking total at checkout
+                                </label>
+                            </div>
+                        </div>
+                        <div class="hbs-form-row"><label>Tax Label</label><div class="hbs-form-row-control"><input type="text" name="hbs_tax_label" class="regular-text" value="<?php echo esc_attr( get_option('hbs_tax_label', 'GST') ); ?>" placeholder="e.g. GST" /><p class="description">Shown to customers next to the tax line, e.g. "GST" or "VAT".</p></div></div>
+                        <div class="hbs-form-row"><label>Tax Percentage (%)</label><div class="hbs-form-row-control"><input type="number" name="hbs_tax_percentage" class="regular-text" step="0.01" min="0" max="100" value="<?php echo esc_attr( get_option('hbs_tax_percentage', '18') ); ?>" /><p class="description">Applied to the booking subtotal (price × hours × rooms) when tax collection is enabled above.</p></div></div>
                         <div class="hbs-card-footer"><?php submit_button('Save Settings', 'primary', 'submit', false); ?></div>
                     </div>
                 </form>
@@ -191,6 +301,22 @@ function hbs_register_settings() {
     register_setting( 'hbs_settings_group', 'hbs_admin_email' ); register_setting( 'hbs_settings_group', 'hbs_default_price' );
     register_setting( 'hbs_settings_group', 'hbs_max_rooms' ); register_setting( 'hbs_settings_group', 'hbs_limited_seats' );
     register_setting( 'hbs_settings_group', 'hbs_max_hours' );
+    register_setting( 'hbs_settings_group', 'hbs_tax_enabled', array( 'sanitize_callback' => function( $v ) { return $v === '1' ? '1' : '0'; } ) );
+    register_setting( 'hbs_settings_group', 'hbs_tax_label' );
+    register_setting( 'hbs_settings_group', 'hbs_tax_percentage', array( 'sanitize_callback' => function( $v ) { $v = floatval( $v ); if ( $v < 0 ) $v = 0; if ( $v > 100 ) $v = 100; return $v; } ) );
+}
+
+/**
+ * Checkboxes aren't submitted at all when unchecked, so WP's Settings API
+ * never receives "hbs_tax_enabled" in that case and the option would be left
+ * unchanged. Explicitly set it to '0' on save whenever the field is missing
+ * from the request so unchecking the box actually disables tax.
+ */
+add_action( 'admin_init', 'hbs_handle_unchecked_tax_toggle', 20 );
+function hbs_handle_unchecked_tax_toggle() {
+    if ( isset( $_POST['option_page'] ) && $_POST['option_page'] === 'hbs_settings_group' && ! isset( $_POST['hbs_tax_enabled'] ) ) {
+        $_POST['hbs_tax_enabled'] = '0';
+    }
 }
 
 /* ==========================================================================
@@ -234,7 +360,7 @@ function hbs_export_bookings_csv() {
 
     fputcsv( $out, array(
         'ID', 'Customer', 'Email', 'Phone', 'Company', 'Service', 'Location',
-        'Date', 'Hours', 'Rooms', 'Amount', 'Razorpay Order ID',
+        'Date', 'Hours', 'Rooms', 'Subtotal', 'Tax %', 'Tax Amount', 'Total Amount', 'Razorpay Order ID',
         'Razorpay Payment ID', 'Status', 'Created At',
     ) );
 
@@ -250,6 +376,9 @@ function hbs_export_bookings_csv() {
             $b->booking_date,
             $b->hours,
             $b->rooms,
+            $b->subtotal_amount,
+            $b->tax_percentage,
+            $b->tax_amount,
             $b->total_amount,
             $b->razorpay_order_id,
             $b->razorpay_payment_id,
@@ -365,7 +494,7 @@ function hbs_bookings_page() {
                             <td class="manage-column column-cb check-column">
                                 <input type="checkbox" id="hbs-select-all" />
                             </td>
-                            <th>Customer</th><th>Email</th><th>Phone</th><th>Service</th><th>Location</th><th>Date</th><th>Hours</th><th>Rooms</th><th>Amount</th><th>Payment ID</th><th>Status</th><th>Actions</th>
+                            <th>Customer</th><th>Email</th><th>Phone</th><th>Service</th><th>Location</th><th>Date</th><th>Hours</th><th>Rooms</th><th>Subtotal</th><th>Tax</th><th>Total</th><th>Payment ID</th><th>Status</th><th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -387,6 +516,8 @@ function hbs_bookings_page() {
                                 <td><?php echo esc_html( $b->booking_date ); ?></td>
                                 <td><?php echo esc_html( $b->hours ); ?></td>
                                 <td><?php echo esc_html( $b->rooms ); ?></td>
+                                <td>₹<?php echo esc_html( $b->subtotal_amount ); ?></td>
+                                <td><?php echo $b->tax_amount > 0 ? '₹' . esc_html( $b->tax_amount ) . ' (' . esc_html( $b->tax_percentage ) . '%)' : '—'; ?></td>
                                 <td>₹<?php echo esc_html( $b->total_amount ); ?></td>
                                 <td><?php echo esc_html( $b->razorpay_payment_id ); ?></td>
                                 <td><?php echo esc_html( ucfirst( $b->status ) ); ?></td>
@@ -532,11 +663,13 @@ function hbs_render_booking_form( $atts ) {
                     <div class="hbs-locked-item"><strong>Service:</strong> <?php echo esc_html( $info_service_name ); ?></div>
                     <div class="hbs-locked-item"><strong>City:</strong> <?php echo esc_html( $info_city_name ); ?></div>
                     <div class="hbs-locked-item"><strong>Location:</strong> <?php echo esc_html( $info_location_name ); ?></div>
-                    <div class="hbs-locked-item"><strong>Price:</strong> ₹<?php echo esc_html( number_format( $info_price, 2 ) ); ?>/hr</div>
+                    <div class="hbs-locked-item"><strong>Price:</strong> ₹<?php echo esc_html( number_format( $info_price, 2 ) ); ?>/hr<?php if ( hbs_is_tax_enabled() ) : ?> <span class="hbs-tax-note" style="opacity:.75;font-size:.9em;">+ <?php echo esc_html( hbs_get_tax_percentage() ); ?>% <?php echo esc_html( hbs_get_tax_label() ); ?></span><?php endif; ?></div>
                 </div>
-                <div class="hbs-price-tag" style="display:none;">Price: ₹<span id="hbs-price-display">0.00</span> / Hour</div>
+                <div class="hbs-price-tag" style="display:none;">Price: ₹<span id="hbs-price-display">0.00</span> / Hour <?php if ( hbs_is_tax_enabled() ) : ?><span class="hbs-tax-note" id="hbs-tax-note" style="opacity:.75;font-size:.9em;">+ <?php echo esc_html( hbs_get_tax_percentage() ); ?>% <?php echo esc_html( hbs_get_tax_label() ); ?></span><?php endif; ?></div>
+                <div class="hbs-price-breakdown" id="hbs-price-breakdown" style="display:none;font-size:.9em;margin-top:6px;line-height:1.6;"></div>
             <?php else: ?>
-                <div class="hbs-price-tag">Price: ₹<span id="hbs-price-display">0.00</span> / Hour</div>
+                <div class="hbs-price-tag">Price: ₹<span id="hbs-price-display">0.00</span> / Hour <?php if ( hbs_is_tax_enabled() ) : ?><span class="hbs-tax-note" id="hbs-tax-note" style="opacity:.75;font-size:.9em;">+ <?php echo esc_html( hbs_get_tax_percentage() ); ?>% <?php echo esc_html( hbs_get_tax_label() ); ?></span><?php endif; ?></div>
+                <div class="hbs-price-breakdown" id="hbs-price-breakdown" style="display:none;font-size:.9em;margin-top:6px;line-height:1.6;"></div>
             <?php endif; ?>
 
             <form id="hbs-booking-form" class="hbs-form-grid">
@@ -626,7 +759,7 @@ function hbs_render_booking_form( $atts ) {
                         </div>
                     </div>
                 </div>
-                <div class="hbs-field" id="hbs-rooms-field-wrap"><!--<label>No. of Rooms</label>--><div class="hbs-select-wrap"><select name="rooms" id="hbs-rooms" required><option value="">Select Date First</option></select></div></div>
+                <div class="hbs-field" id="hbs-rooms-field-wrap"><!--<label>No. of Rooms</label>--><div class="hbs-select-wrap"><select name="rooms" id="hbs-rooms" required><option value="">Select Room</option></select></div></div>
                 <div class="hbs-form-footer hbs-field-full"><button type="submit" class="hbs-submit-btn">Book Now</button><div class="hbs-form-message" id="hbs-form-message"></div></div>
             </form>
         </div>
@@ -649,7 +782,18 @@ function hbs_get_locations() {
 
 add_action( 'wp_ajax_hbs_get_price', 'hbs_get_price' );
 add_action( 'wp_ajax_nopriv_hbs_get_price', 'hbs_get_price' );
-function hbs_get_price() { echo json_encode( array( 'success' => true, 'price' => hbs_calculate_price( intval($_POST['service_id']), intval($_POST['location_id']) ) ) ); wp_die(); }
+function hbs_get_price() {
+    $service_id = intval( $_POST['service_id'] ); $location_id = intval( $_POST['location_id'] );
+    $price = hbs_calculate_price( $service_id, $location_id );
+    echo json_encode( array(
+        'success'        => true,
+        'price'          => $price, // kept for backwards compatibility (unit price / hour)
+        'tax_enabled'    => hbs_is_tax_enabled(),
+        'tax_percentage' => hbs_get_tax_percentage(),
+        'tax_label'      => hbs_get_tax_label(),
+    ) );
+    wp_die();
+}
 
 add_action( 'wp_ajax_hbs_get_calendar', 'hbs_get_calendar' );
 add_action( 'wp_ajax_nopriv_hbs_get_calendar', 'hbs_get_calendar' );
@@ -748,11 +892,27 @@ if ( !preg_match( '/^[6-9]\d{9}$/', $phone ) ) {
     $calendar = new HBS_Calendar( "s{$service_id}_l{$location_id}" );
     if ( $calendar->get_status($date) === 'full' ) { echo json_encode( array( 'success' => false, 'message' => 'This date is fully booked.' ) ); wp_die(); }
     
-    $total_amount = hbs_calculate_price( $service_id, $location_id ) * $hours * $rooms;
-    $response = wp_remote_post( 'https://api.razorpay.com/v1/orders', array( 'headers' => array( 'Authorization' => 'Basic ' . base64_encode( get_option('hbs_razorpay_key') . ':' . get_option('hbs_razorpay_secret') ), 'Content-Type' => 'application/json' ), 'body' => json_encode( array( 'amount' => $total_amount * 100, 'currency' => 'INR', 'receipt' => 'hbs_' . wp_generate_password(6, false) ) ), 'timeout' => 30 ) );
+    $breakdown = hbs_get_price_breakdown( $service_id, $location_id, $hours, $rooms );
+    $total_amount = $breakdown['total'];
+    $response = wp_remote_post( 'https://api.razorpay.com/v1/orders', array( 'headers' => array( 'Authorization' => 'Basic ' . base64_encode( get_option('hbs_razorpay_key') . ':' . get_option('hbs_razorpay_secret') ), 'Content-Type' => 'application/json' ), 'body' => json_encode( array( 'amount' => round( $total_amount * 100 ), 'currency' => 'INR', 'receipt' => 'hbs_' . wp_generate_password(6, false) ) ), 'timeout' => 30 ) );
     $body = json_decode( wp_remote_retrieve_body( $response ), true );
     if ( isset( $body['id'] ) ) {
-        echo json_encode( array( 'success' => true, 'order_id' => $body['id'], 'amount' => $total_amount * 100, 'description' => 'ThinkHaus Booking for ' . $date, 'booking_data' => array( 'service' => $service_id, 'city' => intval($_POST['city']), 'location' => $location_id, 'date' => $date, 'seats' => $seats, 'hours' => $hours, 'rooms' => $rooms, 'full_name' => sanitize_text_field($_POST['full_name']), 'email' => $email, 'phone' => $phone, 'company' => sanitize_text_field($_POST['company']) ) ) );
+        $description = 'ThinkHaus Booking for ' . $date;
+        if ( $breakdown['tax_amount'] > 0 ) {
+            $description .= ' (incl. ' . $breakdown['tax_label'] . ' @ ' . rtrim( rtrim( number_format( $breakdown['tax_percentage'], 2 ), '0' ), '.' ) . '%)';
+        }
+        echo json_encode( array(
+            'success'     => true,
+            'order_id'    => $body['id'],
+            'amount'      => round( $total_amount * 100 ),
+            'description' => $description,
+            'subtotal'    => $breakdown['subtotal'],
+            'tax_amount'  => $breakdown['tax_amount'],
+            'tax_percentage' => $breakdown['tax_percentage'],
+            'tax_label'   => $breakdown['tax_label'],
+            'total'       => $breakdown['total'],
+            'booking_data' => array( 'service' => $service_id, 'city' => intval($_POST['city']), 'location' => $location_id, 'date' => $date, 'seats' => $seats, 'hours' => $hours, 'rooms' => $rooms, 'full_name' => sanitize_text_field($_POST['full_name']), 'email' => $email, 'phone' => $phone, 'company' => sanitize_text_field($_POST['company']) ),
+        ) );
     } else { echo json_encode( array( 'success' => false, 'message' => 'Payment Gateway Error.' ) ); }
     wp_die();
 }
@@ -761,26 +921,63 @@ if ( !preg_match( '/^[6-9]\d{9}$/', $phone ) ) {
 add_action( 'wp_ajax_hbs_verify_payment', 'hbs_verify_payment' );
 add_action( 'wp_ajax_nopriv_hbs_verify_payment', 'hbs_verify_payment' );
 function hbs_verify_payment() {
+    // Buffer everything: some hosting/PHP configs print stray notices from
+    // WordPress core or mail functions, which used to get prepended to our
+    // response and break the frontend's exact "verified" string check even
+    // though the booking itself succeeded. We now build the final result in
+    // $result and discard any incidental output before echoing it.
+    ob_start();
+
     check_ajax_referer( 'hbs_nonce', 'nonce' );
+
+    // Safety net: don't rely solely on the admin having visited wp-admin
+    // since the update. If the schema migration hasn't completed yet,
+    // run it now — this is safe here because the whole function's output
+    // is buffered above, so any incidental notices dbDelta might produce
+    // can't leak into the "verified"/"failed" response.
+    if ( get_option( 'hbs_db_version' ) !== HBS_VERSION ) {
+        hbs_create_custom_tables();
+    }
+
     global $wpdb; $table_book = $wpdb->prefix . 'hbs_bookings';
     $payment_id = sanitize_text_field( $_POST['payment_id'] ); $order_id = sanitize_text_field( $_POST['order_id'] ); $signature = sanitize_text_field( $_POST['signature'] );
-    if ( $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_book WHERE razorpay_payment_id = %s", $payment_id)) ) { echo 'verified'; wp_die(); }
-    
-    $service_id = intval( $_POST['service'] ); $location_id = intval( $_POST['location'] ); $city_id = intval( $_POST['city'] ); $date = sanitize_text_field( $_POST['date'] );
-    $seats = 1; $hours = intval( $_POST['hours'] ); $rooms = intval( $_POST['rooms'] );
-    
-    if ( hash_hmac( 'sha256', $order_id . '|' . $payment_id, get_option('hbs_razorpay_secret') ) === $signature ) {
-        // Check against max rooms
-        $max_rooms = hbs_get_max_rooms( $service_id, $location_id );
-        $booked_rooms = $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(rooms), 0) FROM $table_book WHERE service_id = %d AND location_id = %d AND booking_date = %s AND status = 'confirmed'", $service_id, $location_id, $date));
-        if ( ($booked_rooms + $rooms) > $max_rooms ) { echo 'failed'; wp_die(); }
-        
-        $total_amount = hbs_calculate_price( $service_id, $location_id ) * $hours * $rooms;
-        $wpdb->insert( $table_book, array( 'service_id' => $service_id, 'city_id' => $city_id, 'location_id' => $location_id, 'booking_date' => $date, 'seats' => $seats, 'hours' => $hours, 'rooms' => $rooms, 'total_amount' => $total_amount, 'customer_name' => sanitize_text_field( $_POST['full_name'] ), 'customer_email' => sanitize_email( $_POST['email'] ), 'customer_phone' => sanitize_text_field( $_POST['phone'] ), 'customer_company' => sanitize_text_field( $_POST['company'] ), 'razorpay_order_id' => $order_id, 'razorpay_payment_id' => $payment_id, 'status' => 'confirmed' ) );
-        
-        wp_mail( get_option('hbs_admin_email', get_option('admin_email')), 'New ThinkHaus Booking', "Name: " . sanitize_text_field($_POST['full_name']) . "\nEmail: " . sanitize_email($_POST['email']) . "\nPhone: " . sanitize_text_field($_POST['phone']) . "\nService: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\nDate: {$date}\nHours: {$hours}\nRooms: {$rooms}\nTotal: ₹{$total_amount}\nPayment ID: {$payment_id}" );
-        wp_mail( sanitize_email($_POST['email']), 'Your ThinkHaus Booking Confirmed!', "Thank you!\nService: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\nDate: {$date}\nHours: {$hours}\nRooms: {$rooms}\nTotal Paid: ₹{$total_amount}\nPayment ID: {$payment_id}" );
-        echo 'verified';
-    } else { echo 'failed'; }
+
+    $result = 'failed';
+
+    if ( $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_book WHERE razorpay_payment_id = %s", $payment_id)) ) {
+        $result = 'verified';
+    } else {
+        $service_id = intval( $_POST['service'] ); $location_id = intval( $_POST['location'] ); $city_id = intval( $_POST['city'] ); $date = sanitize_text_field( $_POST['date'] );
+        $seats = 1; $hours = intval( $_POST['hours'] ); $rooms = intval( $_POST['rooms'] );
+
+        $expected_signature = hash_hmac( 'sha256', $order_id . '|' . $payment_id, get_option('hbs_razorpay_secret') );
+
+        if ( ! hash_equals( $expected_signature, $signature ) ) {
+            error_log( sprintf( '[ThinkHaus] Signature mismatch for order %s / payment %s.', $order_id, $payment_id ) );
+        } else {
+            $max_rooms = hbs_get_max_rooms( $service_id, $location_id );
+            $booked_rooms = $wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(rooms), 0) FROM $table_book WHERE service_id = %d AND location_id = %d AND booking_date = %s AND status = 'confirmed'", $service_id, $location_id, $date));
+
+            if ( ($booked_rooms + $rooms) > $max_rooms ) {
+                error_log( sprintf( '[ThinkHaus] Room capacity exceeded for service %d / location %d / date %s (booked %d + requested %d > max %d).', $service_id, $location_id, $date, $booked_rooms, $rooms, $max_rooms ) );
+            } else {
+                $breakdown = hbs_get_price_breakdown( $service_id, $location_id, $hours, $rooms );
+                $subtotal = $breakdown['subtotal']; $tax_percentage = $breakdown['tax_percentage']; $tax_amount = $breakdown['tax_amount']; $total_amount = $breakdown['total'];
+                $inserted = $wpdb->insert( $table_book, array( 'service_id' => $service_id, 'city_id' => $city_id, 'location_id' => $location_id, 'booking_date' => $date, 'seats' => $seats, 'hours' => $hours, 'rooms' => $rooms, 'subtotal_amount' => $subtotal, 'tax_percentage' => $tax_percentage, 'tax_amount' => $tax_amount, 'total_amount' => $total_amount, 'customer_name' => sanitize_text_field( $_POST['full_name'] ), 'customer_email' => sanitize_email( $_POST['email'] ), 'customer_phone' => sanitize_text_field( $_POST['phone'] ), 'customer_company' => sanitize_text_field( $_POST['company'] ), 'razorpay_order_id' => $order_id, 'razorpay_payment_id' => $payment_id, 'status' => 'confirmed' ) );
+
+                if ( false === $inserted ) {
+                    error_log( '[ThinkHaus] Booking insert failed: ' . $wpdb->last_error );
+                } else {
+                    $tax_line = $tax_amount > 0 ? "\n{$breakdown['tax_label']} ({$tax_percentage}%): ₹{$tax_amount}" : '';
+                    wp_mail( get_option('hbs_admin_email', get_option('admin_email')), 'New ThinkHaus Booking', "Name: " . sanitize_text_field($_POST['full_name']) . "\nEmail: " . sanitize_email($_POST['email']) . "\nPhone: " . sanitize_text_field($_POST['phone']) . "\nService: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\nDate: {$date}\nHours: {$hours}\nRooms: {$rooms}\nSubtotal: ₹{$subtotal}{$tax_line}\nTotal: ₹{$total_amount}\nPayment ID: {$payment_id}" );
+                    wp_mail( sanitize_email($_POST['email']), 'Your ThinkHaus Booking Confirmed!', "Thank you!\nService: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\nDate: {$date}\nHours: {$hours}\nRooms: {$rooms}\nSubtotal: ₹{$subtotal}{$tax_line}\nTotal Paid: ₹{$total_amount}\nPayment ID: {$payment_id}" );
+                    $result = 'verified';
+                }
+            }
+        }
+    }
+
+    ob_end_clean(); // discard any stray output produced above
+    echo $result;
     wp_die();
 }

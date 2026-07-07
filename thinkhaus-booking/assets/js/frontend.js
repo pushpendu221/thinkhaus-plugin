@@ -24,6 +24,14 @@ jQuery(document).ready(function ($) {
     _scrollParentModal = null,
     _savedScrollTopModal = 0;
 
+  // Last price/tax info fetched from the server (see updatePrice()).
+  var lastPriceInfo = {
+    unitPrice: 0,
+    taxEnabled: false,
+    taxPercentage: 0,
+    taxLabel: "GST",
+  };
+
   // Cache the single form context
   var $form = $("#hbs-booking-form");
 
@@ -54,8 +62,51 @@ jQuery(document).ready(function ($) {
   /* ------------------------------------------------------------------ *
    *  ROOMS DROPDOWN (starts empty)
    * ------------------------------------------------------------------ */
-  $("#hbs-rooms", $form).html('<option value="">Select Date First</option>');
+  $("#hbs-rooms", $form).html('<option value="">Select Room</option>');
   $("#hbs-rooms-field-wrap").hide();
+
+  /* ------------------------------------------------------------------ *
+   *  ROOMS DROPDOWN GUARD — can't be opened/changed until a date is
+   *  picked; attempting to do so shows an inline error instead.
+   * ------------------------------------------------------------------ */
+  function blockRoomsIfNoDate(e) {
+    if (!selectedDate) {
+      e.preventDefault();
+      $(this).blur();
+      $("#hbs-form-message")
+        .html("Please select a date first.")
+        .removeClass("is-success")
+        .addClass("is-error");
+      return false;
+    }
+  }
+
+  $("#hbs-rooms", $form).on("mousedown keydown", function (e) {
+    // Allow tabbing through the field (Tab/Shift) without triggering the
+    // error; only block interactions that would open/change the dropdown.
+    if (
+      e.type === "keydown" &&
+      e.key !== "Enter" &&
+      e.key !== " " &&
+      e.key !== "ArrowUp" &&
+      e.key !== "ArrowDown"
+    ) {
+      return;
+    }
+    blockRoomsIfNoDate.call(this, e);
+  });
+
+  // Fallback: if a change slips through anyway (e.g. some assistive-tech
+  // input path), snap it back to the placeholder and show the same error.
+  $("#hbs-rooms", $form).on("change", function () {
+    if (!selectedDate && $(this).val() !== "") {
+      $(this).val("");
+      $("#hbs-form-message")
+        .html("Please select a date first.")
+        .removeClass("is-success")
+        .addClass("is-error");
+    }
+  });
 
   /* ------------------------------------------------------------------ *
    *  HELPERS
@@ -441,6 +492,7 @@ jQuery(document).ready(function ($) {
         (i > 1 ? "s" : "") +
         "</option>";
     $("#hbs-rooms", $form).html(rh);
+    updatePriceBreakdown();
 
     // Sync desktop selection state
     $("#hbs-cal-days").find(".hbs-cal-day").removeClass("is-selected");
@@ -461,6 +513,7 @@ jQuery(document).ready(function ($) {
     } else {
       $("#hbs-rooms-field-wrap").slideDown(200);
     }
+    updatePriceBreakdown();
   }
 
   function updatePrice() {
@@ -472,11 +525,57 @@ jQuery(document).ready(function ($) {
         { action: "hbs_get_price", service_id: s, location_id: l },
         function (r) {
           var res = safeParse(r);
-          if (res && res.success)
+          if (res && res.success) {
             $("#hbs-price-display").text(parseFloat(res.price).toFixed(2));
+            lastPriceInfo.unitPrice = parseFloat(res.price) || 0;
+            lastPriceInfo.taxEnabled = !!res.tax_enabled;
+            lastPriceInfo.taxPercentage = parseFloat(res.tax_percentage) || 0;
+            lastPriceInfo.taxLabel = res.tax_label || "GST";
+            updatePriceBreakdown();
+          }
         },
       );
     }
+  }
+
+  // Renders "Subtotal / Tax / Total" under the price tag based on the
+  // currently selected hours + rooms, using the last fetched unit price.
+  function updatePriceBreakdown() {
+    var $breakdown = $("#hbs-price-breakdown");
+    if (!$breakdown.length) return;
+
+    var hours = parseInt($("#hbs-hours", $form).val(), 10) || 0,
+      rooms = parseInt($("#hbs-rooms", $form).val(), 10) || 1;
+
+    if (!lastPriceInfo.unitPrice || !hours) {
+      $breakdown.hide().empty();
+      return;
+    }
+
+    var subtotal = lastPriceInfo.unitPrice * hours * rooms,
+      taxAmount = lastPriceInfo.taxEnabled
+        ? (subtotal * lastPriceInfo.taxPercentage) / 100
+        : 0,
+      total = subtotal + taxAmount;
+
+    var html =
+      '<div class="hbs-price-row">Subtotal: ₹' + subtotal.toFixed(2) + "</div>";
+    if (lastPriceInfo.taxEnabled && taxAmount > 0) {
+      html +=
+        '<div class="hbs-price-row">' +
+        lastPriceInfo.taxLabel +
+        " (" +
+        lastPriceInfo.taxPercentage +
+        "%): ₹" +
+        taxAmount.toFixed(2) +
+        "</div>";
+    }
+    html +=
+      '<div class="hbs-price-row hbs-price-row-total" style="font-weight:600;">Total: ₹' +
+      total.toFixed(2) +
+      "</div>";
+
+    $breakdown.html(html).show();
   }
 
   $("#hbs-service", $form).on("change", function () {
@@ -513,6 +612,8 @@ jQuery(document).ready(function ($) {
   }
 
   $("#hbs-location", $form).on("change", updatePrice);
+
+  $("#hbs-hours, #hbs-rooms", $form).on("change", updatePriceBreakdown);
 
   /* ------------------------------------------------------------------ *
    *  DATE-FIELD CLICK → TOGGLE CALENDAR
@@ -592,6 +693,7 @@ jQuery(document).ready(function ($) {
           (i > 1 ? "s" : "") +
           "</option>";
       $("#hbs-rooms", $form).html(rh);
+      updatePriceBreakdown();
 
       // Visual selection
       $("#hbs-cal-days").find(".hbs-cal-day").removeClass("is-selected");
@@ -775,7 +877,7 @@ jQuery(document).ready(function ($) {
                   res.booking_data,
                 ),
                 function (vr) {
-                  if (vr === "verified") {
+                  if (typeof vr === "string" && vr.trim() === "verified") {
                     $("#hbs-form-message")
                       .html("Booking Successful!")
                       .addClass("is-success");
