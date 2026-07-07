@@ -602,7 +602,30 @@ function hbs_render_booking_form( $atts ) {
                 <div class="hbs-field"><!--<label>Email</label>--><input type="email" name="email" placeholder="Email" required /></div>
                 <div class="hbs-field"><!--<label>Hours</label>--><div class="hbs-select-wrap"><select name="hours" id="hbs-hours" required></select></div></div>
    
-                <div class="hbs-field"><!--<label>Date</label>--><div class="hbs-date-field"><input type="text" name="date" id="hbs-date" required readonly placeholder="Select available date" /><div class="hbs-date-icon"><span class="dashicons dashicons-calendar-alt"></span></div><div class="hbs-calendar-popover" id="hbs-calendar-popover"><div class="hbs-cal-header"><button type="button" class="hbs-cal-nav-btn" data-dir="prev">&laquo;</button><span class="hbs-cal-title"></span><button type="button" class="hbs-cal-nav-btn" data-dir="next">&raquo;</button></div><div class="hbs-cal-grid"><div class="hbs-cal-dow is-weekend">Su</div><div class="hbs-cal-dow">Mo</div><div class="hbs-cal-dow">Tu</div><div class="hbs-cal-dow">We</div><div class="hbs-cal-dow">Th</div><div class="hbs-cal-dow">Fr</div><div class="hbs-cal-dow is-weekend">Sa</div></div><div class="hbs-cal-grid" id="hbs-cal-days"></div></div></div></div>
+                <div class="hbs-field">
+                    <div class="hbs-date-field">
+                        <input type="text" name="date" id="hbs-date" required readonly placeholder="Select available date" />
+                        <div class="hbs-date-icon"><span class="dashicons"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"></rect><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line></svg>
+                            </span></div>
+                        <div class="hbs-calendar-popover" id="hbs-calendar-popover">
+                            <div class="hbs-cal-header">
+                                <button type="button" class="hbs-cal-nav-btn" data-dir="prev">&laquo;</button>
+                                <span class="hbs-cal-title"></span>
+                                <button type="button" class="hbs-cal-nav-btn" data-dir="next">&raquo;</button>
+                            </div>
+                            <div class="hbs-cal-grid">
+                                <div class="hbs-cal-dow is-weekend">Su</div>
+                                <div class="hbs-cal-dow">Mo</div>
+                                <div class="hbs-cal-dow">Tu</div>
+                                <div class="hbs-cal-dow">We</div>
+                                <div class="hbs-cal-dow">Th</div>
+                                <div class="hbs-cal-dow">Fr</div>
+                                <div class="hbs-cal-dow is-weekend">Sa</div>
+                            </div>
+                            <div class="hbs-cal-grid" id="hbs-cal-days"></div>
+                        </div>
+                    </div>
+                </div>
                 <div class="hbs-field" id="hbs-rooms-field-wrap"><!--<label>No. of Rooms</label>--><div class="hbs-select-wrap"><select name="rooms" id="hbs-rooms" required><option value="">Select Date First</option></select></div></div>
                 <div class="hbs-form-footer hbs-field-full"><button type="submit" class="hbs-submit-btn">Book Now</button><div class="hbs-form-message" id="hbs-form-message"></div></div>
             </form>

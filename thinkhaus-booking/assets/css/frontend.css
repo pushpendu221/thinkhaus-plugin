@@ -1,4 +1,7 @@
-/* =========================================================== ThinkHaus Frontend Styles =========================================================== */
+/* ===========================================================
+   ThinkHaus Frontend Styles
+   =========================================================== */
+
 .hbs-modal-overlay {
   position: relative;
   background: #eeede5;
@@ -105,6 +108,10 @@
   background-color: #fff;
   box-shadow: 0 0 0 2px rgba(232, 82, 30, 0.1);
 }
+
+/* ============================================================
+   DATE FIELD TRIGGER
+   ============================================================ */
 .hbs-date-field {
   position: relative;
 }
@@ -114,126 +121,197 @@
 }
 .hbs-date-icon {
   position: absolute;
+  left: auto;
   right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #757575;
-  cursor: pointer;
-  line-height: 1;
-}
-.hbs-calendar-popover {
-  display: none;
-  position: absolute;
-  top: calc(100% + 10px);
-  left: 0;
-  width: 320px;
-  background: #fff;
-  border: 1px solid #dcdcde;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
-  z-index: 9999;
-}
-.hbs-calendar-popover.is-open {
-  display: block;
-}
-.hbs-cal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-.hbs-cal-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1d2327;
-}
-.hbs-cal-nav-btn {
-  background: #f6f7f7;
-  border: 1px solid #dcdcde;
-  width: 32px;
-  height: 32px;
+  top: 10px;
+  width: 26px;
+  height: 26px;
   border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
+  background: linear-gradient(135deg, #e8521e, #d44415);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgba(232, 82, 30, 0.3);
+}
+
+/* ============================================================
+   CALENDAR POPOVER — Lives on <body>, positioned via JS
+   ============================================================ */
+.hbs-calendar-popover {
+  display: none;
+  position: fixed;
+  width: 300px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  z-index: 99999999;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.hbs-calendar-popover.is-open {
+  display: block !important;
+}
+
+/* Header row */
+.hbs-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.hbs-cal-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: #1f1f1f;
+}
+.hbs-cal-nav-btn {
+  background: #f5f3ed;
+  border: none;
+  cursor: pointer;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
   color: #444;
-  transition: background 0.2s;
+  transition: background 0.15s;
 }
 .hbs-cal-nav-btn:hover {
-  background: #e2e2e2;
+  background: #ebe8e0;
 }
+
+/* Day-of-week headers */
 .hbs-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
+  gap: 2px;
   text-align: center;
 }
 .hbs-cal-dow {
-  font-size: 11px;
-  font-weight: 700;
-  color: #9aa0a6;
-  padding-bottom: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #aaa;
+  padding: 6px 0;
   text-transform: uppercase;
-}
-.hbs-cal-day {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 500;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  color: #1d2327;
-  transition: all 0.15s ease;
 }
 .hbs-cal-dow.is-weekend {
   color: #e8521e;
 }
+
+/* ============================================================
+   DAY CELLS — <div> based, not <button>
+   ============================================================ */
+#hbs-cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+.hbs-cal-day {
+  position: relative;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #1d2327;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+}
 .hbs-cal-day:hover:not(.is-empty):not(.is-disabled) {
   background: #f6f7f7;
 }
-.hbs-cal-day.is-empty {
-  cursor: default;
+
+/* Weekend tint */
+.hbs-cal-day.is-weekend {
+  color: #e8521e;
 }
+.hbs-cal-day.is-weekend:hover:not(.is-disabled) {
+  background: #fef0eb;
+}
+
+/* Selected */
+.hbs-cal-day.is-selected {
+  background: #e8521e !important;
+  color: #fff !important;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(232, 82, 30, 0.3);
+}
+
+/* Disabled — past dates & fully booked */
 .hbs-cal-day.is-disabled {
   color: #c3c4c7;
   cursor: not-allowed;
+  text-decoration: line-through;
   background: transparent;
 }
+.hbs-cal-day.is-disabled:hover {
+  background: transparent;
+}
+
+/* Limited — available but low */
 .hbs-cal-day.is-limited {
-  color: #3b82f6;
-  font-weight: 600;
+  color: #1d2327;
 }
-.hbs-cal-day.is-selected {
-  background: #1d2327;
-  color: #ffffff;
+
+/* Empty leading cells */
+.hbs-cal-day.is-empty {
+  cursor: default;
 }
-.hbs-cal-day.is-selected .hbs-dot {
-  background: #ffffff !important;
-}
+
+/* Status dots */
 .hbs-dot {
   position: absolute;
-  bottom: 4px;
+  bottom: 2px;
   left: 50%;
   transform: translateX(-50%);
   width: 5px;
   height: 5px;
   border-radius: 50%;
 }
-.hbs-dot-full {
-  background: #ef4444;
-}
 .hbs-dot-limited {
   background: #3b82f6;
 }
+.hbs-dot-full {
+  background: #ef4444;
+}
+
+/* Dot turns white on selected for visibility */
+.hbs-cal-day.is-selected .hbs-dot {
+  background: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Calendar loading state */
+.hbs-cal-loading {
+  text-align: center;
+  padding: 40px 0;
+  color: #757575;
+  font-size: 14px;
+  grid-column: 1 / -1;
+}
+
+/* ============================================================
+   MOBILE MODAL — inline-styled by JS, only a few overrides
+   ============================================================ */
+.hbs-mm-day {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================================
+   FORM FOOTER & SUBMIT
+   ============================================================ */
 .hbs-form-footer {
   margin-top: 0px;
   padding-top: 22px;
@@ -273,12 +351,10 @@
   background: #9aa0a6;
   cursor: not-allowed;
 }
-.hbs-cal-loading {
-  text-align: center;
-  padding: 40px 0;
-  color: #757575;
-  font-size: 14px;
-}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
 @media (max-width: 600px) {
   .hbs-modal {
     padding: 0px;
@@ -289,8 +365,11 @@
   .hbs-form-grid {
     grid-template-columns: 1fr;
   }
+  /* Popover width no longer needs responsive override —
+     mobile uses the full-screen modal instead.
+     But if somehow the desktop popover shows on a small screen: */
   .hbs-calendar-popover {
-    width: calc(100vw - 50px);
-    left: -10px;
+    width: calc(100vw - 24px);
+    left: 12px !important;
   }
 }
