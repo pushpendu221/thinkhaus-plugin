@@ -68,6 +68,7 @@
         .not(".dpbs-suite-start-nav, .dpbs-suite-end-nav"),
       priceDisplay: container.find('[id$="-price-display"]'),
       priceSuffix: container.find('[id$="-price-suffix"]'),
+      taxLine: container.find('[id$="-tax-line"]'),
       formMessage: container.find(".dpbs-form-message"),
       submitBtn: container.find(".dpbs-submit-btn"),
       suiteFields: container.find(".dpbs-suite-field"),
@@ -188,6 +189,12 @@
 
       this.els.seats.on("change", function () {
         self.updateSeatsInfo();
+        // NEW: keep the tax breakdown in sync with the selected seat count
+        // (suite mode already recomputes via updateSuitePrice's own flow).
+        if (!self.isSuiteMode() && self._basePrice > 0) {
+          var seatsCount = parseInt(self.els.seats.val()) || 1;
+          self.updateTaxLine(self._basePrice * seatsCount);
+        }
       });
 
       // Regular Date Calendar
@@ -456,12 +463,38 @@
       );
     },
 
+    // NEW: shows subtotal + tax = total for whatever amount is currently
+    // priced, so the customer sees the tax they'll pay before submitting.
+    // Hidden entirely when tax is disabled server-side or nothing is priced.
+    updateTaxLine: function (subtotal) {
+      if (!this.els.taxLine || !this.els.taxLine.length) return;
+      if (!this._taxEnabled || !this._taxRate || !subtotal) {
+        this.els.taxLine.hide().text("");
+        return;
+      }
+      var taxAmt = subtotal * (this._taxRate / 100);
+      var total = subtotal + taxAmt;
+      this.els.taxLine
+        .text(
+          "+ " +
+            (this._taxLabel || "Tax") +
+            " (" +
+            this._taxRate +
+            "%): ₹" +
+            taxAmt.toFixed(2) +
+            "  |  You pay: ₹" +
+            total.toFixed(2),
+        )
+        .show();
+    },
+
     updatePrice: function () {
       var self = this,
         sid = this.els.service.val(),
         lid = this.els.location.val();
       if (!sid || !lid) {
         this.els.priceDisplay.text("0.00");
+        this.updateTaxLine(0);
         return;
       }
       $.post(
@@ -471,7 +504,12 @@
           var res = JSON.parse(response);
           if (res.success) {
             self._basePrice = parseFloat(res.price);
+            self._taxEnabled = !!res.tax_enabled;
+            self._taxRate = parseFloat(res.tax_rate) || 0;
+            self._taxLabel = res.tax_label;
             self.els.priceDisplay.text(self._basePrice.toFixed(2));
+            var seatsCount = parseInt(self.els.seats.val()) || 1;
+            self.updateTaxLine(self._basePrice * seatsCount);
             self.updateSeatsInfo();
           }
         },
@@ -489,6 +527,7 @@
         if (!sid || !lid) {
           this.els.priceDisplay.text("0.00");
           if (this.els.priceSuffix.length) this.els.priceSuffix.text("/ Stay");
+          this.updateTaxLine(0);
           return;
         }
         $.post(
@@ -498,6 +537,9 @@
             var res = JSON.parse(response);
             if (res.success) {
               self._basePrice = parseFloat(res.price);
+              self._taxEnabled = !!res.tax_enabled;
+              self._taxRate = parseFloat(res.tax_rate) || 0;
+              self._taxLabel = res.tax_label;
               self.updateSuitePrice();
             }
           },
@@ -517,9 +559,11 @@
           this.els.priceSuffix.text(
             "/ " + diffDays + " Day" + (diffDays > 1 ? "s" : ""),
           );
+        this.updateTaxLine(total);
       } else {
         this.els.priceDisplay.text(this._basePrice.toFixed(2));
         if (this.els.priceSuffix.length) this.els.priceSuffix.text("/ Stay");
+        this.updateTaxLine(this._basePrice);
       }
     },
 
@@ -1545,6 +1589,13 @@
           var res = JSON.parse(response);
           if (res.success) {
             self.bookingData = res.booking_data;
+            // NEW: carry the price breakdown through so we can show it in
+            // the confirmation message once payment is verified.
+            self.bookingData.subtotal = res.subtotal;
+            self.bookingData.tax_amount = res.tax_amount;
+            self.bookingData.tax_label = res.tax_label;
+            self.bookingData.tax_rate = res.tax_rate;
+            self.bookingData.total = res.total;
             self.openRazorpay(res.order_id, res.amount, res.description);
           } else {
             self.showFormMessage(res.message, "error");
@@ -1737,17 +1788,41 @@
         },
         function (response) {
           if (response.trim() === "verified") {
-            self.showFormMessage("Booking confirmed!", "success");
+            // NEW: build a confirmation message that includes the price
+            // breakdown (subtotal + tax = total) when tax data is available.
+            var bd = self.bookingData || {};
+            var confirmMsg = "Booking confirmed!";
+            if (bd.subtotal !== undefined && bd.total !== undefined) {
+              confirmMsg += " Subtotal: ₹" + parseFloat(bd.subtotal).toFixed(2);
+              if (bd.tax_amount && parseFloat(bd.tax_amount) > 0) {
+                confirmMsg +=
+                  " + " +
+                  (bd.tax_label || "Tax") +
+                  " (" +
+                  bd.tax_rate +
+                  "%): ₹" +
+                  parseFloat(bd.tax_amount).toFixed(2);
+              }
+              confirmMsg +=
+                " | Total Paid: ₹" + parseFloat(bd.total).toFixed(2);
+            }
+            self.showFormMessage(confirmMsg, "success");
             self.els.form[0].reset();
             self.selectedDate = "";
             self.els.date.val("");
             self.els.priceDisplay.text("0.00");
+            self.updateTaxLine(0);
             self.els.seatsInfo.text("");
             self.els.calDays.html("");
             self.els.seats.find("option").prop("disabled", false);
             setTimeout(function () {
               self.loadCalendar();
             }, 1000);
+            // NEW: refresh the page 5 seconds after a successful booking so
+            // the customer lands on a fully reset form/calendar state.
+            setTimeout(function () {
+              window.location.reload();
+            }, 5000);
           } else {
             self.showFormMessage(
               "Payment verification failed. Contact support with ID: " +

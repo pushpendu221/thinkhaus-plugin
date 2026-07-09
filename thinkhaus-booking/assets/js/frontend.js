@@ -298,7 +298,7 @@ jQuery(document).ready(function ($) {
       '<div id="' +
       uid +
       '" style="position:absolute;top:0;left:0;right:0;bottom:0;height:100vh;height:100dvh;z-index:2147483647;background:rgba(0,0,0,.6);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 16px 16px;box-sizing:border-box;">' +
-      '<div style="background:#fff;border-radius:16px;width:100%;max-width:340px;box-shadow:0 25px 60px rgba(0,0,0,.4);overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">' +
+      '<div style="background:#fff;border-radius:16px;width:100%;max-width:340px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid #f0ede6;">' +
       '<button type="button" class="hbs-mm-prev" style="background:#f5f3ed;border:none;cursor:pointer;width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#444;">&laquo;</button>' +
       '<span class="hbs-mm-title" style="font-weight:700;font-size:15px;color:#1f1f1f;"></span>' +
@@ -558,22 +558,21 @@ jQuery(document).ready(function ($) {
         : 0,
       total = subtotal + taxAmount;
 
-    var html =
-      '<div class="hbs-price-row">Subtotal: ₹' + subtotal.toFixed(2) + "</div>";
+    var html = "";
     if (lastPriceInfo.taxEnabled && taxAmount > 0) {
       html +=
-        '<div class="hbs-price-row">' +
+        '<div class="hbs-price-row hbs-price-row-total" style="font-weight:600;">' +
+        "+ " +
         lastPriceInfo.taxLabel +
         " (" +
         lastPriceInfo.taxPercentage +
         "%): ₹" +
         taxAmount.toFixed(2) +
+        "  |  You pay: ₹" +
+        total.toFixed(2) +
         "</div>";
+      // html += '<div class="hbs-price-row">' "</div>";
     }
-    html +=
-      '<div class="hbs-price-row hbs-price-row-total" style="font-weight:600;">Total: ₹' +
-      total.toFixed(2) +
-      "</div>";
 
     $breakdown.html(html).show();
   }

@@ -19,7 +19,14 @@ define( 'DPBS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
    entirely - it just records an inquiry-style booking and emails the admin.
    Everything else (regular day-pass services) is completely untouched. */
 define( 'DPBS_SUITE_SERVICE_ID', 357 );
-define( 'DPBS_DB_VERSION', '2' ); // bump when dpbs_bookings schema changes
+define( 'DPBS_DB_VERSION', '3' ); // bump when dpbs_bookings schema changes
+/* NEW: Tax system. Adds subtotal_amount/tax_amount/tax_percent columns to
+   dpbs_bookings (via the existing dpbs_maybe_upgrade_db auto-migration) and
+   a Tax Settings card on the Settings page. When enabled, tax is calculated
+   on top of the existing price logic and is included in the amount actually
+   charged via Razorpay - existing pricing (dpbs_calculate_price) and every
+   other flow (Private Suites inquiry, calendar, admin UI) is untouched
+   unless tax is explicitly turned on in Settings. Defaults to disabled. */
 
 function dpbs_is_suite_service( $service_id ) {
     return intval( $service_id ) === DPBS_SUITE_SERVICE_ID;
@@ -69,6 +76,47 @@ function dpbs_calculate_price( $service_id, $location_id ) {
         return floatval($global_price);
     }
 }
+
+/* NEW: Tax helpers ---------------------------------------------------------
+   Tax is OFF by default (dpbs_tax_enabled option defaults to 'no'), so on
+   any existing live site nothing changes until the admin explicitly enables
+   it from Settings > Tax Settings. */
+function dpbs_tax_enabled() {
+    return get_option( 'dpbs_tax_enabled', 'no' ) === 'yes';
+}
+function dpbs_get_tax_rate() {
+    $rate = floatval( get_option( 'dpbs_tax_percent', '18' ) );
+    return $rate > 0 ? $rate : 0.0;
+}
+function dpbs_get_tax_label() {
+    $label = trim( (string) get_option( 'dpbs_tax_label', 'GST' ) );
+    return $label !== '' ? $label : 'GST';
+}
+
+/**
+ * Central place that computes subtotal, tax and grand total for a booking.
+ * $multiplier is whatever the existing price is multiplied by for that flow
+ * (seats for regular day-pass bookings, seats * months for Private Suites).
+ * Returns amounts rounded to 2 decimals, matching the decimal(10,2) columns.
+ */
+function dpbs_calculate_totals( $service_id, $location_id, $multiplier ) {
+    $unit_price = dpbs_calculate_price( $service_id, $location_id );
+    $subtotal   = round( $unit_price * floatval( $multiplier ), 2 );
+
+    $tax_rate   = dpbs_tax_enabled() ? dpbs_get_tax_rate() : 0.0;
+    $tax_amount = $tax_rate > 0 ? round( $subtotal * ( $tax_rate / 100 ), 2 ) : 0.00;
+    $total      = round( $subtotal + $tax_amount, 2 );
+
+    return array(
+        'unit_price'  => $unit_price,
+        'subtotal'    => $subtotal,
+        'tax_label'   => dpbs_get_tax_label(),
+        'tax_rate'    => $tax_rate,
+        'tax_amount'  => $tax_amount,
+        'total'       => $total,
+    );
+}
+
 /**
  * Resolve a post ID from either a numeric ID or a slug/name
  */
@@ -176,6 +224,9 @@ function dpbs_create_custom_tables() {
         end_date date DEFAULT NULL,
         seats int NOT NULL,
         total_amount decimal(10,2) NOT NULL,
+        subtotal_amount decimal(10,2) NOT NULL DEFAULT 0.00,
+        tax_amount decimal(10,2) NOT NULL DEFAULT 0.00,
+        tax_percent decimal(5,2) NOT NULL DEFAULT 0.00,
         customer_name varchar(255) NOT NULL,
         customer_email varchar(255) NOT NULL,
         customer_phone varchar(50) NOT NULL,
@@ -283,6 +334,39 @@ function dpbs_settings_page() {
                             <label>Private Suites Max Stay (days)</label>
                             <div class="cwf-form-row-control">
                                 <input type="number" name="dpbs_suite_max_days" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_suite_max_days', '30') ); ?>" min="1" />
+                            </div>
+                        </div>
+                        <div class="cwf-card-footer">
+                            <?php submit_button('Save Settings', 'primary', 'submit', false); ?>
+                        </div>
+                    </div>
+
+                    <!-- NEW: Tax Settings -->
+                    <div class="cwf-card">
+                        <div class="cwf-card-title">Tax Settings</div>
+                        <p class="description" style="margin-bottom: 20px;">When enabled, tax is calculated on the booking subtotal and included in the amount charged to the customer via Razorpay.</p>
+                        <div class="cwf-form-row">
+                            <label>Enable Tax</label>
+                            <div class="cwf-form-row-control">
+                                <input type="hidden" name="dpbs_tax_enabled" value="no" />
+                                <label style="font-weight:normal;">
+                                    <input type="checkbox" name="dpbs_tax_enabled" value="yes" <?php checked( get_option( 'dpbs_tax_enabled', 'no' ), 'yes' ); ?> />
+                                    Collect tax on bookings
+                                </label>
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Tax Label</label>
+                            <div class="cwf-form-row-control">
+                                <input type="text" name="dpbs_tax_label" class="regular-text" value="<?php echo esc_attr( get_option( 'dpbs_tax_label', 'GST' ) ); ?>" placeholder="GST" />
+                                <p class="description">Shown to customers and in admin (e.g. GST, VAT, Service Tax).</p>
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Tax Percentage (%)</label>
+                            <div class="cwf-form-row-control">
+                                <input type="number" name="dpbs_tax_percent" step="0.01" min="0" max="100" class="regular-text" value="<?php echo esc_attr( get_option( 'dpbs_tax_percent', '18' ) ); ?>" />
+                                <p class="description">Applied to the subtotal (price × seats, or price × seats × months for Private Suites).</p>
                             </div>
                         </div>
                         <div class="cwf-card-footer">
@@ -423,6 +507,16 @@ function dpbs_register_settings() {
     register_setting( 'dpbs_settings_group', 'dpbs_limited_seats' );
     register_setting( 'dpbs_settings_group', 'dpbs_suite_min_days' );
     register_setting( 'dpbs_settings_group', 'dpbs_suite_max_days' );
+    /* NEW: Tax settings */
+    register_setting( 'dpbs_settings_group', 'dpbs_tax_enabled', array( 'sanitize_callback' => 'dpbs_sanitize_tax_enabled' ) );
+    register_setting( 'dpbs_settings_group', 'dpbs_tax_label' );
+    register_setting( 'dpbs_settings_group', 'dpbs_tax_percent' );
+}
+
+/* Checkboxes only POST a value when checked, so without this an unchecked
+   box would leave the option untouched instead of turning tax off. */
+function dpbs_sanitize_tax_enabled( $value ) {
+    return ( $value === 'yes' ) ? 'yes' : 'no';
 }
 
 /* ==========================================================================
@@ -510,7 +604,9 @@ function dpbs_render_bookings_table( $bookings ) {
                 <th>End Date</th>
                 <th>Seats</th>
                 <th>Manager Seats</th>
-                <th>Amount</th>
+                <th>Subtotal</th>
+                <th>Tax</th>
+                <th>Total</th>
                 <th>Order ID</th>
                 <th>Payment ID</th>
                 <th>Status</th>
@@ -530,7 +626,9 @@ function dpbs_render_bookings_table( $bookings ) {
                     <td><?php echo ! empty( $b->end_date ) ? esc_html( $b->end_date ) : '—'; ?></td>
                     <td><?php echo esc_html( $b->seats ); ?></td>
                     <td><?php echo ! empty( $b->manager_seats ) ? esc_html( $b->manager_seats ) : '—'; ?></td>
-                    <td>₹<?php echo esc_html( $b->total_amount ); ?></td>
+                    <td>₹<?php echo esc_html( number_format( (float) $b->subtotal_amount, 2 ) ); ?></td>
+                    <td><?php echo ( isset( $b->tax_amount ) && $b->tax_amount > 0 ) ? '₹' . esc_html( number_format( (float) $b->tax_amount, 2 ) ) . ' (' . esc_html( rtrim( rtrim( number_format( (float) $b->tax_percent, 2 ), '0' ), '.' ) ) . '%)' : '—'; ?></td>
+                    <td>₹<?php echo esc_html( number_format( (float) $b->total_amount, 2 ) ); ?></td>
                     <td><?php echo esc_html( $b->razorpay_order_id ); ?></td>
                     <td><?php echo esc_html( $b->razorpay_payment_id ); ?></td>
                     <td><?php echo esc_html( ucfirst( $b->status ) ); ?></td>
@@ -640,7 +738,13 @@ if ( isset( $_GET['location'] ) ) {
 
                 <div class="dpbs-price-line">
                     Price: ₹<span id="<?php echo $iid; ?>-price-display">0.00</span> <span id="<?php echo $iid; ?>-price-suffix">/ Seat</span>
+                 <div class="dpbs-tax-line" id="<?php echo $iid; ?>-tax-line" style="display:none;"></div>
                 </div>
+                <!-- NEW: populated by frontend.js with the tax breakdown for
+                     the currently selected price/seats, so the customer sees
+                     what they'll actually pay before submitting. Hidden when
+                     tax is off or nothing is selected yet. -->
+               
 
                 <form id="<?php echo $iid; ?>-booking-form" class="dpbs-booking-form dpbs-form-grid" data-instance="<?php echo $iid; ?>" novalidate>
                     <div class="dpbs-field">
@@ -845,7 +949,15 @@ function dpbs_get_price() {
     $service_id = intval( $_POST['service_id'] );
     $location_id = intval( $_POST['location_id'] );
     $price = dpbs_calculate_price( $service_id, $location_id );
-    echo json_encode( array( 'success' => true, 'price' => $price ) );
+    /* NEW: tax_* fields are additive - 'price' is unchanged (still the raw
+       per-unit price) so existing frontend.js math keeps working as-is. */
+    echo json_encode( array(
+        'success'     => true,
+        'price'       => $price,
+        'tax_enabled' => dpbs_tax_enabled(),
+        'tax_label'   => dpbs_get_tax_label(),
+        'tax_rate'    => dpbs_tax_enabled() ? dpbs_get_tax_rate() : 0,
+    ) );
     wp_die();
 }
 
@@ -1100,7 +1212,7 @@ function dpbs_export_csv() {
 
     fputcsv( $output, array(
         'ID', 'Customer Name', 'Email', 'Phone', 'Company', 'Service', 'City', 'Location',
-        'Booking Date', 'End Date', 'Seats', 'Manager Seats', 'Total Amount', 'Razorpay Order ID', 'Razorpay Payment ID',
+        'Booking Date', 'End Date', 'Seats', 'Manager Seats', 'Subtotal Amount', 'Tax Percent', 'Tax Amount', 'Total Amount', 'Razorpay Order ID', 'Razorpay Payment ID',
         'Status', 'Created At'
     ) );
 
@@ -1118,6 +1230,9 @@ function dpbs_export_csv() {
             $b->end_date,
             $b->seats,
             $b->manager_seats,
+            isset( $b->subtotal_amount ) ? $b->subtotal_amount : '',
+            isset( $b->tax_percent ) ? $b->tax_percent : '',
+            isset( $b->tax_amount ) ? $b->tax_amount : '',
             $b->total_amount,
             $b->razorpay_order_id,
             $b->razorpay_payment_id,
@@ -1170,8 +1285,12 @@ function dpbs_create_booking() {
         wp_die();
     }
 
-    $price = dpbs_calculate_price( $service_id, $location_id );
-    $total_amount = $price * $seats;
+    /* CHANGED: totals now include tax (if enabled in Settings). $total_amount
+       is what's actually charged via Razorpay - unchanged behavior when tax
+       is disabled (dpbs_calculate_totals returns tax_amount = 0 and
+       total === subtotal === price * seats, same as before). */
+    $totals = dpbs_calculate_totals( $service_id, $location_id, $seats );
+    $total_amount = $totals['total'];
 
     $api_key = get_option('dpbs_razorpay_key');
     $api_secret = get_option('dpbs_razorpay_secret');
@@ -1185,11 +1304,20 @@ function dpbs_create_booking() {
     $body = json_decode( wp_remote_retrieve_body( $response ), true );
     
     if ( isset( $body['id'] ) ) {
+        $description = 'Day Pass Booking for ' . $date;
+        if ( $totals['tax_amount'] > 0 ) {
+            $description .= ' (Subtotal ₹' . number_format( $totals['subtotal'], 2 ) . ' + ' . $totals['tax_label'] . ' ' . $totals['tax_rate'] . '% ₹' . number_format( $totals['tax_amount'], 2 ) . ')';
+        }
         echo json_encode( array(
             'success' => true,
             'order_id' => $body['id'],
             'amount' => $total_amount * 100,
-            'description' => 'Day Pass Booking for ' . $date,
+            'subtotal' => $totals['subtotal'],
+            'tax_label' => $totals['tax_label'],
+            'tax_rate' => $totals['tax_rate'],
+            'tax_amount' => $totals['tax_amount'],
+            'total' => $totals['total'],
+            'description' => $description,
             'booking_data' => array(
                 'service' => $service_id,
                 'city' => intval($_POST['city']),
@@ -1230,16 +1358,22 @@ function dpbs_verify_payment() {
     $generated_signature = hash_hmac( 'sha256', $order_id . '|' . $payment_id, $api_secret );
     
     if ( $generated_signature === $signature ) {
-        $price = dpbs_calculate_price( $service_id, $location_id );
-        $total_amount = $price * $seats;
-        
-        $wpdb->insert( $table_book, array(
+        /* CHANGED: recompute subtotal/tax/total server-side the same way
+           dpbs_create_booking did (never trust client-sent amounts). When
+           tax is disabled this reduces to the original price * seats. */
+        $totals = dpbs_calculate_totals( $service_id, $location_id, $seats );
+        $total_amount = $totals['total'];
+
+        $inserted = $wpdb->insert( $table_book, array(
             'service_id'       => $service_id,
             'city_id'          => $city_id,
             'location_id'      => $location_id,
             'booking_date'     => $date,
             'seats'            => $seats,
             'total_amount'     => $total_amount,
+            'subtotal_amount'  => $totals['subtotal'],
+            'tax_amount'       => $totals['tax_amount'],
+            'tax_percent'      => $totals['tax_rate'],
             'customer_name'    => sanitize_text_field( $_POST['full_name'] ),
             'customer_email'   => sanitize_email( $_POST['email'] ),
             'customer_phone'   => sanitize_text_field( $_POST['phone'] ),
@@ -1248,14 +1382,40 @@ function dpbs_verify_payment() {
             'razorpay_payment_id' => $payment_id,
             'status'           => 'confirmed'
         ));
-        
+
         $admin_email = get_option('dpbs_admin_email', get_option('admin_email'));
-        $subject = 'New Day Pass Booking Confirmed';
-        $message = "A new booking has been confirmed.\n\nName: " . sanitize_text_field($_POST['full_name']) . "\nEmail: " . sanitize_email($_POST['email']) . "\nPhone: " . sanitize_text_field($_POST['phone']) . "\n";
-        $message .= "Service: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\n";
-        $message .= "Date: {$date}\nSeats: {$seats}\nTotal: ₹{$total_amount}\nRazorpay Payment ID: {$payment_id}";
-        wp_mail( $admin_email, $subject, $message );
-        
+
+        /* IMPORTANT: the payment is already verified and captured by Razorpay
+           at this point. If the DB insert fails (e.g. a schema mismatch, such
+           as a missing column after a bad update), we must NOT tell the
+           customer that verification failed - that would be showing a
+           payment error for a payment that actually succeeded. Instead we
+           still confirm to the customer and urgently alert the admin so the
+           booking can be reconciled/recorded manually. */
+        if ( $inserted === false ) {
+            error_log( 'DPBS: booking insert failed after verified payment. Order: ' . $order_id . ' Payment: ' . $payment_id . ' DB error: ' . $wpdb->last_error );
+            wp_mail(
+                $admin_email,
+                'URGENT: Day Pass booking NOT saved after successful payment',
+                "A Razorpay payment was successfully verified but the booking could not be saved to the database.\n\n" .
+                "Order ID: {$order_id}\nPayment ID: {$payment_id}\nDB Error: {$wpdb->last_error}\n\n" .
+                "Name: " . sanitize_text_field($_POST['full_name']) . "\nEmail: " . sanitize_email($_POST['email']) . "\nPhone: " . sanitize_text_field($_POST['phone']) . "\n" .
+                "Service: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\n" .
+                "Date: {$date}\nSeats: {$seats}\nTotal: ₹{$total_amount}\n\nPlease record this booking manually."
+            );
+        } else {
+            $subject = 'New Day Pass Booking Confirmed';
+            $message = "A new booking has been confirmed.\n\nName: " . sanitize_text_field($_POST['full_name']) . "\nEmail: " . sanitize_email($_POST['email']) . "\nPhone: " . sanitize_text_field($_POST['phone']) . "\n";
+            $message .= "Service: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\n";
+            $message .= "Date: {$date}\nSeats: {$seats}\n";
+            $message .= "Subtotal: ₹" . number_format( $totals['subtotal'], 2 ) . "\n";
+            if ( $totals['tax_amount'] > 0 ) {
+                $message .= $totals['tax_label'] . " ({$totals['tax_rate']}%): ₹" . number_format( $totals['tax_amount'], 2 ) . "\n";
+            }
+            $message .= "Total Paid: ₹{$total_amount}\nRazorpay Payment ID: {$payment_id}";
+            wp_mail( $admin_email, $subject, $message );
+        }
+
         echo 'verified';
     } else {
         echo 'failed';
@@ -1337,9 +1497,12 @@ function dpbs_submit_suite_booking() {
     /* Same price source as regular day-pass bookings (service/location price
        rules configured on this plugin's Settings page), just billed per
        month like the Private Suites Inquiry plugin instead of per day. */
-    $price_per_seat = dpbs_calculate_price( $service_id, $location_id );
     $months         = max( 1, ceil( $duration / 30 ) );
-    $total_amount   = $price_per_seat * $seats * $months;
+    /* CHANGED: same tax-aware totals helper as the paid flow, so the
+       estimate emailed to the admin/customer is consistent. Still no
+       Razorpay charge here - this remains an inquiry, not a payment. */
+    $totals         = dpbs_calculate_totals( $service_id, $location_id, $seats * $months );
+    $total_amount   = $totals['total'];
 
     $inserted = $wpdb->insert( $table, array(
         'service_id'       => $service_id,
@@ -1349,6 +1512,9 @@ function dpbs_submit_suite_booking() {
         'end_date'         => $end_date,
         'seats'            => $seats,
         'total_amount'     => $total_amount,
+        'subtotal_amount'  => $totals['subtotal'],
+        'tax_amount'       => $totals['tax_amount'],
+        'tax_percent'      => $totals['tax_rate'],
         'customer_name'    => $full_name,
         'customer_email'   => $email,
         'customer_phone'   => $phone_clean,
@@ -1379,7 +1545,11 @@ function dpbs_submit_suite_booking() {
     $message .= "Duration: {$duration} days ({$months} month" . ( $months > 1 ? 's' : '' ) . ")\n";
     $message .= "Seats: {$seats}\n";
     $message .= "Manager Seats: {$manager}\n";
-    $message .= "Estimated Total: ₹" . number_format( $total_amount ) . "\n";
+    $message .= "Estimated Subtotal: ₹" . number_format( $totals['subtotal'], 2 ) . "\n";
+    if ( $totals['tax_amount'] > 0 ) {
+        $message .= "Estimated " . $totals['tax_label'] . " ({$totals['tax_rate']}%): ₹" . number_format( $totals['tax_amount'], 2 ) . "\n";
+    }
+    $message .= "Estimated Total: ₹" . number_format( $total_amount, 2 ) . "\n";
     wp_mail( $admin_email, $subject, $message );
 
     echo json_encode( array(
