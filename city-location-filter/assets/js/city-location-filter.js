@@ -1,110 +1,169 @@
 /**
  * City Location Filter — Front-End Logic
- * v1.0.7
- *  - Fixed FOUC: .cfs-cities-wrap is hidden by CSS, revealed after carousel init
- *  - Added .cfs-init-loader handling for initial page load
- *  - Dynamic item count: caps visible items at actual city count
- *  - Destroys theme-initialised Owl instances before our own init
+ * v2.0.0
+ *  - Layout changed from carousel/grid to stacked Spaces / City / Location
+ *    dropdowns + a Proceed button, per updated design.
+ *  - Core data flow is unchanged:
+ *      1) Spaces <select> change -> AJAX fetch of cities+locations for that
+ *         service (same REST endpoint / same response shape as before).
+ *      2) City <select> change -> populates the Location <select> from the
+ *         already-fetched data (no extra request, same as the old
+ *         city-card-click behaviour).
+ *      3) Location <select> change -> arms the Proceed button.
+ *      4) Proceed click -> navigates to the same URL the old area-card
+ *         anchors used to point to (service permalink + ?location=slug).
  */
 (function ($) {
   "use strict";
 
-  /* ======================================================================
-       CAROUSEL DEFAULTS
-       ====================================================================== */
-  function getCarouselOptions(itemCount) {
-    var max1 = Math.min(itemCount, 1);
-    var max2 = Math.min(itemCount, 2);
-    var max4 = Math.min(itemCount, 4);
+  var PLACEHOLDER_CITY = "— Select City —";
+  var PLACEHOLDER_LOCATION = "— Select Location —";
 
-    return {
-      loop: false,
-      margin: 24,
-      nav: itemCount > max4,
-      dots: itemCount > 1,
-      autoplay: false,
-      responsive: {
-        0: { items: max1 },
-        600: { items: max2 },
-        1024: { items: max4 },
-      },
-    };
+  /* ======================================================================
+       STATE HELPERS
+       Each .city-container keeps its current "cities" payload (with
+       nested locations) and service URL in a jQuery .data() store so the
+       city -> location population never needs a network round-trip.
+       ====================================================================== */
+  function getState($wrapper) {
+    return $wrapper.data("cfsState") || { cities: [], serviceUrl: "" };
   }
 
-  /* ======================================================================
-       1. INIT CAROUSEL
-       ====================================================================== */
-  function initCarousel($el, itemCount, delay) {
-    if (typeof $.fn.owlCarousel === "undefined") return;
+  function setState($wrapper, state) {
+    $wrapper.data("cfsState", state);
+  }
 
-    delay = delay || 0;
-    itemCount = itemCount || $el.children(".item").length;
-
-    function doInit() {
-      // Destroy any existing Owl instance
-      if ($el.hasClass("owl-loaded")) {
-        try {
-          $el.trigger("destroy.owl.carousel");
-        } catch (e) {}
-        $el.removeClass(
-          "owl-loaded owl-drag owl-hidden owl-grab owl-rtl owl-refresh owl-text-select-on",
-        );
-        var $items = $el.find(".item").detach();
-        $el.empty().append($items);
+  function findCity(state, citySlug) {
+    var found = null;
+    $.each(state.cities, function (i, city) {
+      if (city.slug === citySlug) {
+        found = city;
+        return false;
       }
+    });
+    return found;
+  }
 
-      $el.owlCarousel(getCarouselOptions(itemCount));
-
-      // Trigger resize so Owl re-measures
-      setTimeout(function () {
-        $(window).trigger("resize.owl.carousel");
-      }, 50);
-    }
-
-    if (delay > 0) {
-      setTimeout(doInit, delay);
-    } else {
-      doInit();
-    }
+  function buildLocationUrl(serviceUrl, locationSlug) {
+    if (!serviceUrl) return "#";
+    var sep = serviceUrl.indexOf("?") === -1 ? "?" : "&";
+    return serviceUrl + sep + "location=" + encodeURIComponent(locationSlug);
   }
 
   /* ======================================================================
-       2. REVEAL CITIES WRAPPER — called after carousel is ready
+       POPULATE: CITY SELECT (from a cities[] payload)
        ====================================================================== */
-  function revealCities($wrapper) {
-    var $citiesWrap = $wrapper.find(".cfs-cities-wrap");
-    var $initLoader = $wrapper.find(".cfs-init-loader");
+  function populateCitySelect($wrapper, cities) {
+    var $city = $wrapper.find(".cfs-city-select");
+    var $location = $wrapper.find(".cfs-location-select");
+    var $proceed = $wrapper.find(".cfs-proceed-btn");
 
-    // Hide the initial loader first
-    $initLoader.hide();
+    $city.empty();
 
-    // Small delay to ensure carousel has painted, then reveal
-    setTimeout(function () {
-      $citiesWrap.addClass("is-ready");
-    }, 50);
+    if (!cities || !cities.length) {
+      $city.append($("<option>", { value: "", text: "No cities available" }));
+      $city.prop("disabled", true);
+      resetLocationSelect($wrapper);
+      return;
+    }
+
+    $city.append($("<option>", { value: "", text: PLACEHOLDER_CITY }));
+    $.each(cities, function (i, city) {
+      $city.append($("<option>", { value: city.slug, text: city.title }));
+    });
+    $city.prop("disabled", false);
+
+    resetLocationSelect($wrapper);
+    $proceed.prop("disabled", true);
   }
 
   /* ======================================================================
-       3. CITY CARD CLICK
+       POPULATE: LOCATION SELECT (from the chosen city's locations[])
        ====================================================================== */
-  $(document).on("click", ".city-card", function (e) {
-    e.preventDefault();
+  function populateLocationSelect($wrapper, locations) {
+    var $location = $wrapper.find(".cfs-location-select");
+    var $proceed = $wrapper.find(".cfs-proceed-btn");
 
+    $location.empty();
+
+    if (!locations || !locations.length) {
+      $location.append(
+        $("<option>", { value: "", text: "No locations available" }),
+      );
+      $location.prop("disabled", true);
+      $proceed.prop("disabled", true);
+      return;
+    }
+
+    $location.append($("<option>", { value: "", text: PLACEHOLDER_LOCATION }));
+    $.each(locations, function (i, loc) {
+      $location.append($("<option>", { value: loc.slug, text: loc.title }));
+    });
+    $location.prop("disabled", false);
+    $proceed.prop("disabled", true);
+  }
+
+  function resetLocationSelect($wrapper) {
+    var $location = $wrapper.find(".cfs-location-select");
+    $location.empty();
+    $location.append($("<option>", { value: "", text: PLACEHOLDER_LOCATION }));
+    $location.prop("disabled", true);
+  }
+
+  /* ======================================================================
+       1. CITY SELECT CHANGE
+       ====================================================================== */
+  $(document).on("change", ".cfs-city-select", function () {
     var $wrapper = $(this).closest(".city-container");
-    var citySlug = $(this).data("city");
-    var $areas = $wrapper.find(".cityfilter-areas");
-    var $hint = $wrapper.find(".cfs-city-hint");
+    var state = getState($wrapper);
+    var citySlug = $(this).val();
 
-    $wrapper.find(".city-card").removeClass("active");
-    $(this).addClass("active");
-
-    $wrapper.find(".area-grid").removeClass("active-grid");
-    var $target = $wrapper.find(".area-grid#" + citySlug);
-    if ($target.length) {
-      $target.addClass("active-grid");
-      $areas.addClass("areas-visible");
-      $hint.hide();
+    if (!citySlug) {
+      resetLocationSelect($wrapper);
+      $wrapper.find(".cfs-proceed-btn").prop("disabled", true);
+      return;
     }
+
+    var city = findCity(state, citySlug);
+    populateLocationSelect($wrapper, city ? city.locations : []);
+  });
+
+  /* ======================================================================
+       2. LOCATION SELECT CHANGE
+       ====================================================================== */
+  $(document).on("change", ".cfs-location-select", function () {
+    var $wrapper = $(this).closest(".city-container");
+    var $proceed = $wrapper.find(".cfs-proceed-btn");
+    $proceed.prop("disabled", !$(this).val());
+  });
+
+  /* ======================================================================
+       3. PROCEED CLICK
+       ====================================================================== */
+  $(document).on("click", ".cfs-proceed-btn", function () {
+    var $btn = $(this);
+    if ($btn.prop("disabled")) return;
+
+    var $wrapper = $btn.closest(".city-container");
+    var state = getState($wrapper);
+    var citySlug = $wrapper.find(".cfs-city-select").val();
+    var locationSlug = $wrapper.find(".cfs-location-select").val();
+
+    if (!citySlug || !locationSlug) return;
+
+    var city = findCity(state, citySlug);
+    if (!city) return;
+
+    var loc = null;
+    $.each(city.locations, function (i, l) {
+      if (l.slug === locationSlug) {
+        loc = l;
+        return false;
+      }
+    });
+    if (!loc) return;
+
+    window.location.href = buildLocationUrl(state.serviceUrl, loc.slug);
   });
 
   /* ======================================================================
@@ -115,29 +174,18 @@
     var $wrapper = $("#" + $select.data("wrapper"));
     var serviceId = parseInt($select.val(), 10);
 
-    var $carousel = $wrapper.find(".worklocation-slider");
-    var $areas = $wrapper.find(".cityfilter-areas");
     var $empty = $wrapper.find(".cfs-no-results");
-    var $loading = $wrapper.find(".cfs-loading:not(.cfs-init-loader)");
-    var $hint = $wrapper.find(".cfs-city-hint");
-    var $citiesWrap = $wrapper.find(".cfs-cities-wrap");
-    var $initLoader = $wrapper.find(".cfs-init-loader");
+    var $loading = $wrapper.find(".cfs-loading");
+    var $city = $wrapper.find(".cfs-city-select");
+    var $proceed = $wrapper.find(".cfs-proceed-btn");
 
     if (!serviceId) {
       $wrapper.attr("data-service-id", "0").attr("data-service-slug", "");
       $empty.hide();
       $loading.hide();
-      $initLoader.hide();
-      $hint.hide();
-      $citiesWrap.removeClass("is-ready").hide();
-      if ($carousel.hasClass("owl-loaded")) {
-        try {
-          $carousel.trigger("destroy.owl.carousel");
-        } catch (e) {}
-        $carousel.removeClass("owl-loaded owl-drag");
-      }
-      $carousel.html("");
-      $areas.html("").removeClass("areas-visible");
+      setState($wrapper, { cities: [], serviceUrl: "" });
+      populateCitySelect($wrapper, []);
+      $proceed.prop("disabled", true);
       if (window.history.replaceState) {
         window.history.replaceState(null, "", window.location.pathname);
       }
@@ -145,12 +193,9 @@
     }
 
     $empty.hide();
-    $hint.hide();
-    $initLoader.hide();
     $loading.show();
-
-    // Hide cities wrapper during fetch
-    $citiesWrap.removeClass("is-ready");
+    $city.prop("disabled", true);
+    $proceed.prop("disabled", true);
 
     $.ajax({
       url: cfsConfig.restBase,
@@ -165,14 +210,12 @@
         $wrapper.attr("data-service-id", response.service_id);
         $wrapper.attr("data-service-slug", response.service_slug);
 
-        if ($carousel.hasClass("owl-loaded")) {
-          try {
-            $carousel.trigger("destroy.owl.carousel");
-          } catch (e) {}
-          $carousel.removeClass("owl-loaded owl-drag");
-        }
-        $carousel.html("");
-        $areas.html("").removeClass("areas-visible");
+        setState($wrapper, {
+          cities: response.cities || [],
+          serviceUrl: response.service_url || "",
+        });
+
+        $loading.hide();
 
         if (!response.cities || response.cities.length === 0) {
           $empty
@@ -182,76 +225,11 @@
                 '</strong>".',
             )
             .show();
-          $loading.hide();
-          $citiesWrap.removeClass("is-ready").hide();
+          populateCitySelect($wrapper, []);
           return;
         }
 
-        // Make sure the wrapper is visible but still at opacity 0
-        $citiesWrap.show();
-
-        var carouselHTML = "";
-        var areasHTML = "";
-        var cityCount = response.cities.length;
-
-        $.each(response.cities, function (idx, city) {
-          var imgTag = city.image
-            ? '<img src="' + city.image + '" alt="' + city.title + '">'
-            : "";
-
-          carouselHTML +=
-            '<div class="item">' +
-            '<div class="worklocation-card">' +
-            '<a href="javascript:void(0)" class="city-card" data-city="' +
-            city.slug +
-            '">' +
-            imgTag +
-            "</a>" +
-            "</div>" +
-            "</div>";
-
-          if (idx === 0) {
-            areasHTML +=
-              '<h3 class="cfs-locations-title"><span class="cfs-locations-title-text">Select Location</span></h3>';
-          }
-          areasHTML += '<div class="area-grid" id="' + city.slug + '">';
-          $.each(city.locations, function (j, loc) {
-            var locImg = loc.image
-              ? '<img src="' +
-                loc.image +
-                '" alt="' +
-                loc.title +
-                '" loading="lazy">'
-              : "";
-            var locURL = response.service_url + "?location=" + loc.slug;
-
-            areasHTML +=
-              '<a href="' +
-              locURL +
-              '" class="area-card" title="' +
-              loc.title +
-              '">' +
-              locImg +
-              '<span class="area-name">' +
-              loc.title +
-              "</span>" +
-              "</a>";
-          });
-          areasHTML += "</div>";
-        });
-
-        $carousel.html(carouselHTML);
-        $areas.html(areasHTML);
-
-        // Init carousel then reveal
-        initCarousel($carousel, cityCount, 150);
-        $loading.hide();
-        $hint.show();
-
-        // Reveal after a short delay for paint
-        setTimeout(function () {
-          $citiesWrap.addClass("is-ready");
-        }, 200);
+        populateCitySelect($wrapper, response.cities);
 
         if (window.history.replaceState) {
           var newURL =
@@ -264,41 +242,38 @@
       },
       error: function () {
         $loading.hide();
-        $citiesWrap.removeClass("is-ready").hide();
         $empty.text("Error loading locations. Please try again.").show();
+        populateCitySelect($wrapper, []);
       },
     });
   });
 
   /* ======================================================================
-       5. DOM READY — init server-side-rendered carousels
+       5. DOM READY — hydrate state from server-rendered bootstrap JSON
        ====================================================================== */
   $(document).ready(function () {
     $(".city-container[data-service-id]").each(function () {
-      var sid = parseInt($(this).attr("data-service-id"), 10);
-      var $this = $(this);
+      var $wrapper = $(this);
+      var $dataScript = $wrapper.find(".cfs-bootstrap-data");
+      var bootstrap = { cities: [], serviceUrl: "" };
 
-      if (sid > 0) {
-        var $carousel = $this.find(".worklocation-slider");
-        var itemCount = $carousel.children(".item").length;
-
-        if (itemCount > 0) {
-          // Init carousel with delay to beat theme's Owl auto-init
-          initCarousel($carousel, itemCount, 400);
-
-          // Reveal everything after carousel is ready (400ms init + 100ms buffer)
-          setTimeout(function () {
-            revealCities($this);
-            $this.find(".cfs-city-hint").show();
-          }, 550);
-        } else {
-          // No items — hide loader, show nothing
-          $this.find(".cfs-init-loader").hide();
+      if ($dataScript.length) {
+        try {
+          var parsed = JSON.parse($dataScript.text());
+          bootstrap = {
+            cities: parsed.cities || [],
+            serviceUrl: parsed.serviceUrl || "",
+          };
+        } catch (e) {
+          bootstrap = { cities: [], serviceUrl: "" };
         }
-      } else {
-        // No service selected — hide loader
-        $this.find(".cfs-init-loader").hide();
       }
+
+      setState($wrapper, bootstrap);
+
+      // City/location selects are already server-rendered with correct
+      // options and disabled states; just make sure Proceed starts locked.
+      $wrapper.find(".cfs-proceed-btn").prop("disabled", true);
     });
   });
 })(jQuery);

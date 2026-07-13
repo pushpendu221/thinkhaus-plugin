@@ -1,11 +1,12 @@
 <?php
 /**
  * Plugin Name:  City Location Filter Shortcode
- * Description:  Given a service (from ?servicetype=slug), shows filtered cities 
- *               as an image carousel, then filtered locations per city. Locations 
- *               are hidden until a city is clicked.
+ * Description:  Given a service (from ?servicetype=slug), shows filtered cities
+ *               and locations as a stacked "Spaces / City / Location" dropdown
+ *               picker with a Proceed button. Locations are populated once a
+ *               city is chosen; Proceed navigates to the selected location.
  *               Usage: [city_location_filter]
- * Version:      1.0.6
+ * Version:      2.0.0
  * Author:       Pushpendu
  * Text Domain:  cfs
  */
@@ -14,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'CFS_VERSION',    '1.0.6' );
+define( 'CFS_VERSION',    '2.0.0' );
 define( 'CFS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'CFS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -169,6 +170,13 @@ function cfs_get_filtered_data( int $service_id ): array {
         return strcasecmp( $a['title'], $b['title'] );
     } );
 
+    foreach ( $cities as &$city ) {
+        usort( $city['locations'], function( $a, $b ) {
+            return strcasecmp( $a['title'], $b['title'] );
+        } );
+    }
+    unset( $city );
+
     return [ 'cities' => $cities ];
 }
 
@@ -216,29 +224,22 @@ function cfs_render_shortcode( array $atts ): string {
     $slug_no_post = ( ! empty( $service['slug'] ) && empty( $service['id'] ) );
     $has_data     = ! empty( $cities );
 
+    // Data payload consumed by JS: same shape the REST endpoint returns,
+    // so the dropdown-population code path is identical for the initial
+    // server-rendered state and for subsequent AJAX service switches.
+    $bootstrap = [
+        'serviceId'    => $service['id'],
+        'serviceSlug'  => $service['slug'],
+        'serviceTitle' => $service['title'],
+        'serviceUrl'   => $service['id'] ? get_permalink( $service['id'] ) : '',
+        'cities'       => $cities,
+    ];
+
     ob_start();
     ?>
-    <section class="city-container" id="<?php echo esc_attr( $uid ); ?>"
+    <section class="city-container cfs-dropdown-layout" id="<?php echo esc_attr( $uid ); ?>"
         data-service-id="<?php echo esc_attr( $service['id'] ); ?>"
         data-service-slug="<?php echo esc_attr( $service['slug'] ); ?>">
-
-        <!-- ── SPACES DROPDOWN ─────────────────────────────────────────── -->
-        <div class="cityfilter filters">
-            <div class="filter">
-                <label>Spaces</label>
-                <select class="cfs-service-select" data-wrapper="<?php echo esc_attr( $uid ); ?>">
-                    <?php if ( empty( $service['id'] ) ) : ?>
-                        <option value="">— Select Space —</option>
-                    <?php endif; ?>
-                    <?php foreach ( $all_services as $svc ) : ?>
-                        <option value="<?php echo esc_attr( $svc->ID ); ?>"
-                            <?php selected( $service['id'], $svc->ID ); ?>>
-                            <?php echo esc_html( $svc->post_title ); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-        </div>
 
         <?php if ( $slug_no_post ) : ?>
             <div class="cfs-no-results">
@@ -251,80 +252,79 @@ function cfs_render_shortcode( array $atts ): string {
             No locations available for "<strong><?php echo esc_html( $service['title'] ); ?></strong>".
         </div>
 
-        <!-- ── LOADING (for AJAX dropdown changes) ─────────────────────── -->
         <div class="cfs-loading" id="<?php echo esc_attr( $uid ); ?>-loading" style="display:none;">
             <span class="cfs-spinner"></span> Loading…
         </div>
 
-        <?php if ( $has_data ) : ?>
+        <div class="cfs-filters-row">
 
-            <!-- ── INITIAL PAGE LOAD LOADER (shown until carousel inits) ── -->
-            <div class="cfs-loading cfs-init-loader" id="<?php echo esc_attr( $uid ); ?>-init-loader">
-                <span class="cfs-spinner"></span> Loading…
+            <!-- ── SPACES ───────────────────────────────────────────────── -->
+            <div class="cfs-field">
+                <label class="cfs-field-label" for="<?php echo esc_attr( $uid ); ?>-service">Spaces</label>
+                <div class="cfs-select-wrap">
+                    <select class="cfs-service-select"
+                        id="<?php echo esc_attr( $uid ); ?>-service"
+                        data-wrapper="<?php echo esc_attr( $uid ); ?>">
+                        <?php if ( empty( $service['id'] ) ) : ?>
+                            <option value="">— Select Space —</option>
+                        <?php endif; ?>
+                        <?php foreach ( $all_services as $svc ) : ?>
+                            <option value="<?php echo esc_attr( $svc->ID ); ?>"
+                                <?php selected( $service['id'], $svc->ID ); ?>>
+                                <?php echo esc_html( $svc->post_title ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
 
-            <!-- ── CITIES WRAPPER: hidden until JS is ready ────────────── -->
-            <div class="cfs-cities-wrap" id="<?php echo esc_attr( $uid ); ?>-cities-wrap">
-
-                <!-- ── CITY CAROUSEL ───────────────────────────────────── -->
-                <div class="owl-carousel owl-theme worklocation-slider"
-                    id="<?php echo esc_attr( $uid ); ?>-carousel">
-
-                    <?php foreach ( $cities as $city ) : ?>
-                        <div class="item">
-                            <div class="worklocation-card">
-                                <a href="javascript:void(0)"
-                                    class="city-card"
-                                    data-city="<?php echo esc_attr( $city['slug'] ); ?>">
-                                    <?php if ( $city['image'] ) : ?>
-                                        <img src="<?php echo esc_url( $city['image'] ); ?>"
-                                            alt="<?php echo esc_attr( $city['title'] ); ?>">
-                                    <?php endif; ?>
-                                </a>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-
+            <!-- ── CITY ─────────────────────────────────────────────────── -->
+            <div class="cfs-field">
+                <label class="cfs-field-label" for="<?php echo esc_attr( $uid ); ?>-city">City</label>
+                <div class="cfs-select-wrap">
+                    <select class="cfs-city-select"
+                        id="<?php echo esc_attr( $uid ); ?>-city"
+                        <?php disabled( ! $has_data ); ?>>
+                        <option value=""><?php echo $has_data ? '— Select City —' : 'No cities available'; ?></option>
+                        <?php foreach ( $cities as $city ) : ?>
+                            <option value="<?php echo esc_attr( $city['slug'] ); ?>">
+                                <?php echo esc_html( $city['title'] ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
+            </div>
 
-                <!-- ── HINT (shown until a city is clicked) ────────────── -->
-                <p class="cfs-city-hint" style="display:none;">
-                    Select a city above to view available locations.
-                </p>
-
-                <!-- ── LOCATION GRIDS (hidden until city clicked) ─────── -->
-                <div class="cityfilter-areas" id="<?php echo esc_attr( $uid ); ?>-areas">
-                    <h3 class="cfs-locations-title">
-                        <span class="cfs-locations-title-text">Select Location</span>
-                    </h3>
-
-                    <?php foreach ( $cities as $city ) : ?>
-                        <div class="area-grid" id="<?php echo esc_attr( $city['slug'] ); ?>">
-
-                            <?php foreach ( $city['locations'] as $loc ) : ?>
-                                <a href="<?php echo esc_url( cfs_build_location_url( $service['id'], $loc['slug'] ) ); ?>"
-                                    class="area-card" title="<?php echo esc_attr( $loc['title'] ); ?>">
-                                    <?php if ( $loc['image'] ) : ?>
-                                        <img src="<?php echo esc_url( $loc['image'] ); ?>"
-                                            alt="<?php echo esc_attr( $loc['title'] ); ?>" loading="lazy">
-                                    <?php endif; ?>
-                                    <span class="area-name"><?php echo esc_html( $loc['title'] ); ?></span>
-                                </a>
-                            <?php endforeach; ?>
-
-                        </div>
-                    <?php endforeach; ?>
-
+            <!-- ── LOCATION ─────────────────────────────────────────────── -->
+            <div class="cfs-field">
+                <label class="cfs-field-label" for="<?php echo esc_attr( $uid ); ?>-location">Location</label>
+                <div class="cfs-select-wrap">
+                    <select class="cfs-location-select"
+                        id="<?php echo esc_attr( $uid ); ?>-location"
+                        disabled>
+                        <option value="">— Select Location —</option>
+                    </select>
                 </div>
+            </div>
 
-            </div><!-- .cfs-cities-wrap -->
+        </div><!-- .cfs-filters-row -->
 
-        <?php endif; ?>
+        <div class="cfs-proceed-row">
+            <button type="button" class="cfs-proceed-btn" id="<?php echo esc_attr( $uid ); ?>-proceed" disabled>
+                <span class="cfs-proceed-text">Proceed</span>
+                <span class="cfs-proceed-icon" aria-hidden="true"><!-- &#8594;--><img src="https://betatesting.net/projects/thinkhaus/wp-content/uploads/2026/07/tickarrow.svg" alt="arrow"></span>
+            </button>
+        </div>
+
+        <script type="application/json" class="cfs-bootstrap-data" id="<?php echo esc_attr( $uid ); ?>-data">
+            <?php echo wp_json_encode( $bootstrap ); ?>
+        </script>
 
     </section>
     <?php
     return ob_get_clean();
 }
+
 /* ==========================================================================
    7. REST ENDPOINT
    ========================================================================== */

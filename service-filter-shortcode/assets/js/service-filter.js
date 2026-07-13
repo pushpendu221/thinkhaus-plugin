@@ -1,5 +1,5 @@
 /**
- * service-filter.js  —  Service Filter Shortcode front-end logic  v1.1.0
+ * service-filter.js  —  Service Filter Shortcode front-end logic  v1.2.0
  * Vanilla JS, no jQuery dependency (Owl Carousel itself needs jQuery).
  *
  * URL presetting:
@@ -13,12 +13,23 @@
  *
  * Description: comes strictly from the service post excerpt (set server-side
  * in sfs_get_services_for_location()).
+ *
+ * v1.2.0 — City / Location / Spaces / Proceed flow:
+ *   Selecting a Location fetches services as before, but instead of
+ *   rendering a card carousel they populate the new "Spaces" dropdown.
+ *   Picking a Space enables the Proceed button, which navigates to that
+ *   service's permalink (with ?location={slug} appended, same convention
+ *   the old cards used). The card-carousel helpers are left in place but
+ *   unused, in case that view is ever needed again.
  */
 
 (function () {
   "use strict";
 
-  /* ── Owl Carousel helper ──────────────────────────────────────────────── */
+  // Per-instance state: uid -> { services: [...], locationSlug: "" }
+  var stateByUid = {};
+
+  /* ── Owl Carousel helper (kept for potential reuse, currently unused) ──── */
   function initCarousel(wrapperId, opts) {
     if (
       typeof jQuery === "undefined" ||
@@ -37,7 +48,7 @@
     $el.owlCarousel(opts);
   }
 
-  /* ── Build a single card's HTML ──────────────────────────────────────── */
+  /* ── Build a single card's HTML (kept for potential reuse, unused) ─────── */
   // locationSlug: the post_name (URL slug) of the selected location post.
   // Appended to the service permalink as ?location={slug} so the landing
   // page can read it and know which location context the user came from.
@@ -53,12 +64,7 @@
         '" loading="lazy">'
       : "";
 
-    // Build the href: base permalink + ?location={slug}
-    var baseHref = svc.permalink || "#";
-    var href =
-      baseHref !== "#" && locationSlug
-        ? baseHref + "?location=" + encodeURIComponent(locationSlug)
-        : baseHref;
+    var href = buildServiceHref(svc, locationSlug);
 
     return (
       '<div class="item">' +
@@ -85,6 +91,14 @@
     );
   }
 
+  /* ── Shared href builder: service permalink + ?location={slug} ─────────── */
+  function buildServiceHref(svc, locationSlug) {
+    var baseHref = svc.permalink || "#";
+    return baseHref !== "#" && locationSlug
+      ? baseHref + "?location=" + encodeURIComponent(locationSlug)
+      : baseHref;
+  }
+
   /* ── HTML escape helpers ──────────────────────────────────────────────── */
   function escHTML(s) {
     return String(s)
@@ -106,21 +120,58 @@
     var el = document.getElementById(uid + "-empty");
     if (el) el.style.display = on ? "block" : "none";
   }
-  function setCarouselVisible(uid, on) {
-    var el = document.getElementById(uid + "-carousel");
-    if (el) el.style.display = on ? "" : "none";
+  function getSpaceSelect(uid) {
+    return document.getElementById(uid + "-space");
+  }
+  function getProceedBtn(uid) {
+    return document.getElementById(uid + "-proceed");
   }
 
-  /* ── Fetch services for a location and re-render the carousel ─────────── */
-  function loadServices(uid, locationId, carouselOpts) {
+  /* ── Reset the Spaces dropdown + Proceed button to their empty state ──── */
+  function resetSpaces(uid) {
+    var spaceSelect = getSpaceSelect(uid);
+    if (spaceSelect) {
+      spaceSelect.innerHTML = "";
+      var placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "— Select Space —";
+      spaceSelect.appendChild(placeholder);
+      spaceSelect.disabled = true;
+    }
+    var proceedBtn = getProceedBtn(uid);
+    if (proceedBtn) proceedBtn.disabled = true;
+
+    stateByUid[uid] = { services: [], locationSlug: "" };
+  }
+
+  /* ── Populate the Spaces dropdown from the fetched services list ───────── */
+  function populateSpaces(uid, services) {
+    var spaceSelect = getSpaceSelect(uid);
+    if (!spaceSelect) return;
+
+    spaceSelect.innerHTML = "";
+    var placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "— Select Space —";
+    spaceSelect.appendChild(placeholder);
+
+    services.forEach(function (svc, idx) {
+      var opt = document.createElement("option");
+      opt.value = String(idx);
+      opt.textContent = svc.title;
+      spaceSelect.appendChild(opt);
+    });
+
+    spaceSelect.disabled = false;
+  }
+
+  /* ── Fetch services for a location and populate the Spaces dropdown ────── */
+  function loadServices(uid, locationId) {
     if (!locationId) return;
 
-    var carouselEl = document.getElementById(uid + "-carousel");
-    if (!carouselEl) return;
-
+    resetSpaces(uid);
     setLoading(uid, true);
     setEmpty(uid, false);
-    setCarouselVisible(uid, false);
 
     fetch(sfsConfig.restServicesBase + locationId, {
       headers: { "X-WP-Nonce": sfsConfig.restNonce },
@@ -133,7 +184,6 @@
         setLoading(uid, false);
 
         if (!data.services || data.services.length === 0) {
-          carouselEl.innerHTML = "";
           setEmpty(uid, true);
           return;
         }
@@ -149,14 +199,12 @@
           return true;
         });
 
-        var locationSlug = data.location_slug || "";
-        carouselEl.innerHTML = unique
-          .map(function (svc) {
-            return buildCardHTML(svc, locationSlug);
-          })
-          .join("");
-        setCarouselVisible(uid, true);
-        initCarousel(uid, carouselOpts);
+        stateByUid[uid] = {
+          services: unique,
+          locationSlug: data.location_slug || "",
+        };
+
+        populateSpaces(uid, unique);
       })
       .catch(function (err) {
         setLoading(uid, false);
@@ -210,13 +258,12 @@
       var uid = wrapper.id;
       var citySelect = wrapper.querySelector(".sfs-city-select");
       var locationSelect = wrapper.querySelector(".sfs-location-select");
-      var carouselOpts = {};
-
-      try {
-        carouselOpts = JSON.parse(wrapper.dataset.carouselOpts || "{}");
-      } catch (e) {}
+      var spaceSelect = wrapper.querySelector(".sfs-space-select");
+      var proceedBtn = getProceedBtn(uid);
 
       if (!citySelect || !locationSelect) return;
+
+      stateByUid[uid] = { services: [], locationSlug: "" };
 
       // IDs resolved server-side from the URL.
       var activeCityId = parseInt(wrapper.dataset.activeCity, 10) || 0;
@@ -229,27 +276,53 @@
         // Repopulate Location dropdown (no preselect — user chose manually).
         populateLocations(uid, cityId, locationSelect, 0);
 
+        // Location changed out from under it — reset downstream state.
+        resetSpaces(uid);
+
         // Don't auto-load services; wait for the user to pick a location.
-        // (Matches the URL behaviour: /city/delhi/ shows no cards.)
+        // (Matches the URL behaviour: /city/delhi/ shows no spaces yet.)
       });
 
       /* ── Location change ─────────────────────────────────────────── */
       locationSelect.addEventListener("change", function () {
         if (this.value) {
-          loadServices(uid, this.value, carouselOpts);
+          loadServices(uid, this.value);
+        } else {
+          resetSpaces(uid);
         }
       });
+
+      /* ── Space change ───────────────────────────────────────────── */
+      if (spaceSelect) {
+        spaceSelect.addEventListener("change", function () {
+          if (proceedBtn) proceedBtn.disabled = this.value === "";
+        });
+      }
+
+      /* ── Proceed click ──────────────────────────────────────────── */
+      if (proceedBtn) {
+        proceedBtn.addEventListener("click", function () {
+          if (proceedBtn.disabled || !spaceSelect) return;
+
+          var idx = spaceSelect.value;
+          var state = stateByUid[uid];
+          if (!state || idx === "" || !state.services[idx]) return;
+
+          var svc = state.services[idx];
+          window.location.href = buildServiceHref(svc, state.locationSlug);
+        });
+      }
 
       /* ── Initial state driven by URL ─────────────────────────────── */
       if (activeLocationId) {
         // Full preset: city + location from URL → load services immediately.
-        loadServices(uid, activeLocationId, carouselOpts);
+        loadServices(uid, activeLocationId);
       } else if (activeCityId) {
         // City-only preset: dropdown already pre-selected by PHP.
         // Location dropdown shows placeholder — no service load yet.
         // (Nothing extra to do here; PHP already rendered the right options.)
       }
-      // else: no preset — both dropdowns at placeholder, carousel stays empty.
+      // else: no preset — all dropdowns at placeholder, Proceed disabled.
     });
   }
 

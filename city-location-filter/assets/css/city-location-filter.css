@@ -1,8 +1,11 @@
 /**
  * City Location Filter — Stylesheet
- * v1.0.8
- *  - Added opacity:0 to .cfs-cities-wrap to prevent FOUC
- *  - Added .cfs-init-loader styles
+ * v2.0.0
+ *  - Replaced the owl-carousel city slider + image grid with a stacked
+ *    "Spaces / City / Location" dropdown picker and a Proceed button,
+ *    matching the updated design.
+ *  - .cfs-no-results / .cfs-loading / .cfs-spinner are unchanged since
+ *    the JS still uses them for empty-state and AJAX loading feedback.
  */
 
 /* ==========================================================================
@@ -13,182 +16,151 @@
   text-align: left;
 }
 
+.cfs-dropdown-layout {
+  max-width: 640px;
+  width: 100%;
+}
+
 /* ==========================================================================
-   DROPDOWN SECTION
+   FILTER FIELDS (Spaces / City / Location)
    ========================================================================== */
 
-.cfs-dropdown-wrap {
+.cfs-filters-row {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+  gap: 22px;
   margin-bottom: 28px;
 }
 
-.cfs-dropdown-label {
-  font-weight: 600;
-  font-size: 0.875rem;
-  display: block;
-}
-
-.cfs-service-select {
-  min-width: 220px;
-  padding: 8px 12px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  background: #fff;
-  cursor: pointer;
-  appearance: auto;
-}
-
-/* ==========================================================================
-   CITIES WRAPPER — HIDDEN BY DEFAULT, SHOWN BY JS AFTER CAROUSEL INIT
-   This prevents the flash of raw HTML before Owl Carousel transforms it.
-   ========================================================================== */
-
-.cfs-cities-wrap {
-  min-height: 260px;
-  transition: opacity 0.3s ease;
-  opacity: 0;
-  pointer-events: none; /* Prevents clicks while hidden */
-  position: relative;
-}
-
-.cfs-cities-wrap.is-ready {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* ==========================================================================
-   CAROUSEL
-   ========================================================================== */
-
-.worklocation-slider {
-  width: 100%;
-  box-sizing: border-box;
-  text-align: left;
-}
-
-.worklocation-slider .owl-stage-outer {
-  overflow: hidden;
-}
-
-.worklocation-slider .owl-item {
-  box-sizing: border-box;
-  min-width: 0;
-  float: left;
-}
-
-.worklocation-slider .owl-stage {
-  display: flex;
-  align-items: flex-start;
-}
-
-/* ==========================================================================
-   CITY CARDS
-   ========================================================================== */
-
-.worklocation-card {
-  padding: 0px;
-}
-
-.city-card {
-  display: block;
-  position: relative;
-  border: 3px solid transparent;
-  border-radius: 4px;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.city-card img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: 2px;
-}
-
-/* ==========================================================================
-   HINT
-   ========================================================================== */
-
-.cfs-city-hint {
-  margin: 14px 0 4px;
-  text-align: left;
-  color: #aaa;
-  font-size: 0.85rem;
-  font-style: italic;
-}
-
-/* ==========================================================================
-   LOCATION AREAS
-   ========================================================================== */
-
-.cityfilter-areas {
-  display: none;
-  margin-top: 28px;
-  text-align: left;
-}
-
-.cityfilter-areas.areas-visible {
-  display: block;
-}
-
-.area-grid {
-  display: none;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 20px;
-  justify-items: start;
-}
-
-.area-grid.active-grid {
-  display: grid;
-}
-
-/* ==========================================================================
-   LOCATION CARDS
-   ========================================================================== */
-
-.area-card {
+.cfs-field {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  text-decoration: none;
-  color: inherit;
-  border-radius: 8px;
-  overflow: hidden;
-  width: 100%;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-  background: rgba(255, 255, 255, 0.05);
+  gap: 8px;
 }
 
-.area-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
-}
-
-.area-card img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.area-name {
-  display: block;
-  padding: 10px 12px;
-  font-size: 0.875rem;
+.cfs-field-label {
   font-weight: 600;
-  text-align: left;
+  font-size: 0.95rem;
+  color: #1a1a1a;
+  line-height: 1.2;
+}
+
+.cfs-select-wrap {
+  position: relative;
+}
+
+/* Custom dropdown chevron (dark triangle), since native <select> arrows
+   are hidden via appearance:none below. */
+.cfs-select-wrap::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid #1a1a1a;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.cfs-service-select,
+.cfs-city-select,
+.cfs-location-select {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: #ffffff;
+  border: none;
+  border-radius: 6.89px;
+  padding: 17px 46px 17px 20px;
+  font-size: 15px;
+  font-family: "Skia", sans-serif;
+  color: #281D18;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.15s ease;
+}
+
+.cfs-service-select:focus,
+.cfs-city-select:focus,
+.cfs-location-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(230, 98, 26, 0.4);
+}
+
+.cfs-service-select:disabled,
+.cfs-city-select:disabled,
+.cfs-location-select:disabled {
+  color: #a3a3a3;
+  cursor: not-allowed;
 }
 
 /* ==========================================================================
-   LOADING — both AJAX and initial page load
+   PROCEED BUTTON
+   ========================================================================== */
+
+.cfs-proceed-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cfs-proceed-btn {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  border: none;
+  border-radius: 6.89px;
+  overflow: hidden;
+  padding: 3px;
+  cursor: pointer;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  font-family: inherit;
+  width: 204px;
+}
+
+.cfs-proceed-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.cfs-proceed-text {
+  display: flex;
+  align-items: center;
+  padding: 18px 20px;
+  font-weight: 500;
+  font-size: 17px;
+  font-family: "NeutraText", sans-serif;
+  color: #1a1a1a;
+  background: #ffffff;
+}
+
+.cfs-proceed-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  height: 56px;
+  width: 56px;
+  background: #fb5729;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 1.15rem;
+  line-height: 1;
+  transition: background 0.15s ease;
+}
+
+.cfs-proceed-btn:not(:disabled):hover .cfs-proceed-icon {
+  background: #fb5729;
+}
+
+/* ==========================================================================
+   LOADING — shown during AJAX service-switch fetch
    ========================================================================== */
 
 .cfs-loading {
@@ -198,25 +170,15 @@
   gap: 10px;
   color: #999;
   font-size: 0.9rem;
-  padding: 20px 0;
-}
-
-/* Initial page load loader */
-.cfs-init-loader {
-  min-height: 80px;
-  transition: opacity 0.2s ease;
-}
-
-.cfs-init-loader.is-hiding {
-  opacity: 0;
+  padding: 4px 0 20px;
 }
 
 .cfs-spinner {
   display: inline-block;
   width: 18px;
   height: 18px;
-  border: 3px solid rgba(255, 255, 255, 0.2);
-  border-top-color: #e6a020;
+  border: 3px solid rgba(0, 0, 0, 0.12);
+  border-top-color: #e6621a;
   border-radius: 50%;
   animation: cfs-spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -234,98 +196,30 @@
 
 .cfs-no-results {
   padding: 16px;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 6px;
   font-size: 0.9rem;
-  color: #ccc;
+  color: #555;
   text-align: left;
+  margin-bottom: 20px;
 }
+
 /* ==========================================================================
-   LOCATIONS TITLE — "Select Location" heading shown after city click
+   RESPONSIVE
    ========================================================================== */
 
-.cfs-locations-title {
-  margin: 0 0 24px 0;
-  padding: 0 0 14px 0;
-  font-size: 1.375rem;
-  font-weight: 700;
-  color: #ffffff;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-  position: relative;
-  display: none;
-}
+@media (max-width: 480px) {
+  .cfs-proceed-row {
+    justify-content: stretch;
+  }
 
-/* Show title only when areas are visible */
-.cityfilter-areas.areas-visible .cfs-locations-title {
-  display: block;
-}
+  .cfs-proceed-btn {
+    width: 100%;
+  }
 
-/* Decorative underline accent */
-.cfs-locations-title::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 50px;
-  height: 3px;
-  background: #e6a020;
-  border-radius: 2px;
-}
-
-/* Subtle accent on the text itself */
-.cfs-locations-title-text {
-  position: relative;
-}
-
-/* Optional: Add a small icon before text using pseudo-element */
-.cfs-locations-title-text::before {
-  content: "";
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  background: #e6a020;
-  border-radius: 2px;
-  margin-right: 10px;
-  vertical-align: middle;
-  position: relative;
-  top: -1px;
-}
-/* ==========================================================================
-   OWL NAV & DOTS
-   ========================================================================== */
-
-.worklocation-slider .owl-nav {
-  text-align: left;
-  margin-top: 10px;
-}
-
-.worklocation-slider .owl-nav button.owl-prev,
-.worklocation-slider .owl-nav button.owl-next {
-  background: rgba(230, 160, 32, 0.8) !important;
-  color: #fff !important;
-  border-radius: 50% !important;
-  width: 36px !important;
-  height: 36px !important;
-  line-height: 36px !important;
-  font-size: 1.2rem !important;
-  transition: background 0.2s ease;
-}
-
-.worklocation-slider .owl-nav button:hover {
-  background: #e6a020 !important;
-}
-
-.worklocation-slider .owl-dots {
-  text-align: left;
-  margin-top: 10px;
-}
-
-.worklocation-slider .owl-dots .owl-dot span {
-  background: rgba(230, 160, 32, 0.4) !important;
-}
-
-.worklocation-slider .owl-dots .owl-dot.active span {
-  background: #e6a020 !important;
+  .cfs-proceed-text {
+    flex: 1;
+    justify-content: center;
+  }
 }

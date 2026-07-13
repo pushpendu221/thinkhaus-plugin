@@ -4,6 +4,134 @@
  * rules already in the theme. Only adds what's specific to this shortcode.
  */
 
+/* ── Outer container (matches the reference design's soft cream card) ────── */
+/* Scoped under .sfs-section so this never leaks into other .spaces-container
+   usages elsewhere on the site — only this shortcode's markup is affected. */
+.sfs-section .spaces-container {
+  background-color: #e9e4db;
+  padding: 28px;
+  border-radius: 14px;
+}
+
+/* ── Filters layout (stacked, full-width fields) ─────────────────────────── */
+.sfs-section .filters {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.sfs-section .filters .filter {
+  width: 100%;
+}
+
+.sfs-section .filters .filter label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+/* Wrapper that carries the custom chevron; select itself is unstyled by us
+   apart from what's needed to look like the flat white field in the design. */
+.sfs-section .sfs-select-wrap {
+  position: relative;
+}
+
+.sfs-section .sfs-select-wrap::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid #1a1a1a;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.sfs-section .sfs-city-select,
+.sfs-section .sfs-location-select,
+.sfs-section .sfs-space-select {
+  width: 100%;
+  padding: 16px 44px 16px 18px;
+  border: none;
+  border-radius: 10px;
+  background-color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-size: 0.95rem;
+  color: #333;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+}
+
+.sfs-section .sfs-city-select:focus,
+.sfs-section .sfs-location-select:focus,
+.sfs-section .sfs-space-select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Proceed button (white label half + orange arrow half) ──────────────── */
+.sfs-proceed-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 28px;
+}
+
+.sfs-proceed-btn {
+  display: flex;
+  align-items: stretch;
+  border: none;
+  padding: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+}
+
+.sfs-proceed-text {
+  display: flex;
+  align-items: center;
+  padding: 16px 28px;
+  background: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.sfs-proceed-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 20px;
+  background: #f2711c;
+  color: #fff;
+}
+
+.sfs-proceed-btn:not(:disabled):hover .sfs-proceed-icon {
+  background: #d95f0f;
+}
+
+.sfs-proceed-btn:disabled {
+  cursor: not-allowed;
+}
+
+.sfs-proceed-btn:disabled .sfs-proceed-icon {
+  background: #f2a878;
+}
+
+/* ── Card carousel — not used by the current stacked-filter design; kept in
+   the DOM (unrendered) rather than removed, in case it's needed again. ──── */
+.sfs-section .owl-carousel.workspace-slider {
+  display: none !important;
+}
+
 /* ── Loading spinner ─────────────────────────────────────────────────────── */
 .sfs-loading {
   display: flex;
@@ -38,7 +166,7 @@
   text-align: center;
 }
 
-/* ── Disabled Location select visual cue ─────────────────────────────────── */
+/* ── Disabled select visual cue (City / Location / Spaces) ──────────────── */
 .sfs-section select:disabled {
   opacity: 0.5;
   cursor: not-allowed;

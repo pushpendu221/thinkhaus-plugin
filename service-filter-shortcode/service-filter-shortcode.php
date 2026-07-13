@@ -331,66 +331,97 @@ function sfs_render_shortcode( array $atts ): string {
 				<!-- City dropdown -->
 				<div class="filter">
 					<label for="<?php echo esc_attr( $uid ); ?>-city">City</label>
-					<select
-						id="<?php echo esc_attr( $uid ); ?>-city"
-						class="sfs-city-select"
-						data-wrapper="<?php echo esc_attr( $uid ); ?>">
+					<div class="sfs-select-wrap">
+						<select
+							id="<?php echo esc_attr( $uid ); ?>-city"
+							class="sfs-city-select"
+							data-wrapper="<?php echo esc_attr( $uid ); ?>">
 
-						<?php if ( ! $active_city_id ) : ?>
-							<!-- No URL preset — show a placeholder first option -->
-							<option value="">— Select City —</option>
-						<?php endif; ?>
+							<?php if ( ! $active_city_id ) : ?>
+								<!-- No URL preset — show a placeholder first option -->
+								<option value="">— Select City —</option>
+							<?php endif; ?>
 
-						<?php foreach ( $parent_cities as $city ) : ?>
-							<option
-								value="<?php echo esc_attr( $city->ID ); ?>"
-								<?php selected( $active_city_id, $city->ID ); ?>>
-								<?php echo esc_html( strtoupper( $city->post_title ) ); ?>
-							</option>
-						<?php endforeach; ?>
-					</select>
+							<?php foreach ( $parent_cities as $city ) : ?>
+								<option
+									value="<?php echo esc_attr( $city->ID ); ?>"
+									<?php selected( $active_city_id, $city->ID ); ?>>
+									<?php echo esc_html( strtoupper( $city->post_title ) ); ?>
+								</option>
+							<?php endforeach; ?>
+						</select>
+					</div>
 				</div>
 
 				<!-- Location dropdown -->
 				<div class="filter">
 					<label for="<?php echo esc_attr( $uid ); ?>-location">Locations</label>
-					<select
-						id="<?php echo esc_attr( $uid ); ?>-location"
-						class="sfs-location-select"
-						data-wrapper="<?php echo esc_attr( $uid ); ?>"
-						<?php echo empty( $city_children ) ? 'disabled' : ''; ?>>
+					<div class="sfs-select-wrap">
+						<select
+							id="<?php echo esc_attr( $uid ); ?>-location"
+							class="sfs-location-select"
+							data-wrapper="<?php echo esc_attr( $uid ); ?>"
+							<?php echo empty( $city_children ) ? 'disabled' : ''; ?>>
 
-						<?php if ( empty( $city_children ) ) : ?>
-							<!-- No city selected or city has no children -->
-							<option value="">— Select Location —</option>
-
-						<?php else : ?>
-							<?php if ( ! $active_location_id ) : ?>
-								<!-- City preset but no location in URL — placeholder first -->
+							<?php if ( empty( $city_children ) ) : ?>
+								<!-- No city selected or city has no children -->
 								<option value="">— Select Location —</option>
-							<?php endif; ?>
 
-							<?php foreach ( $city_children as $child ) : ?>
-								<option
-									value="<?php echo esc_attr( $child->ID ); ?>"
-									<?php selected( $active_location_id, $child->ID ); ?>>
-									<?php echo esc_html( $child->post_title ); ?>
-								</option>
-							<?php endforeach; ?>
-						<?php endif; ?>
-					</select>
+							<?php else : ?>
+								<?php if ( ! $active_location_id ) : ?>
+									<!-- City preset but no location in URL — placeholder first -->
+									<option value="">— Select Location —</option>
+								<?php endif; ?>
+
+								<?php foreach ( $city_children as $child ) : ?>
+									<option
+										value="<?php echo esc_attr( $child->ID ); ?>"
+										<?php selected( $active_location_id, $child->ID ); ?>>
+										<?php echo esc_html( $child->post_title ); ?>
+									</option>
+								<?php endforeach; ?>
+							<?php endif; ?>
+						</select>
+					</div>
+				</div>
+
+				<!-- Spaces dropdown (populated client-side from the services
+				     returned for the selected location) -->
+				<div class="filter">
+					<label for="<?php echo esc_attr( $uid ); ?>-space">Spaces</label>
+					<div class="sfs-select-wrap">
+						<select
+							id="<?php echo esc_attr( $uid ); ?>-space"
+							class="sfs-space-select"
+							data-wrapper="<?php echo esc_attr( $uid ); ?>"
+							disabled>
+							<option value="">— Select Space —</option>
+						</select>
+					</div>
 				</div>
 
 			</div><!-- .filters -->
 
 			<!-- ── LOADING STATE ─────────────────────────────────────────── -->
 			<div class="sfs-loading" id="<?php echo esc_attr( $uid ); ?>-loading" style="display:none;">
-				<span class="sfs-spinner"></span> Loading services…
+				<span class="sfs-spinner"></span> Loading spaces…
 			</div>
 
 			<!-- ── NO RESULTS STATE ──────────────────────────────────────── -->
 			<div class="sfs-no-results" id="<?php echo esc_attr( $uid ); ?>-empty" style="display:none;">
-				No services available at this location.
+				No spaces available at this location.
+			</div>
+
+			<!-- ── PROCEED ───────────────────────────────────────────────── -->
+			<div class="sfs-proceed-row">
+				<button
+					type="button"
+					class="sfs-proceed-btn"
+					id="<?php echo esc_attr( $uid ); ?>-proceed"
+					disabled>
+					<span class="sfs-proceed-text">Proceed</span>
+					<span class="sfs-proceed-icon"><i class="fa-solid fa-arrow-right"></i></span>
+				</button>
 			</div>
 
 			<!-- ── CARDS CAROUSEL ────────────────────────────────────────── -->
