@@ -2,13 +2,13 @@
 /**
  * Plugin Name: Day Pass Booking System
  * Description: Companion plugin for Service/City CPTs. Adds a day pass booking form with custom calendar, seat tracking, and Razorpay integration.
- * Version: 1.7.0
+ * Version: 1.9.0
  * Author: Pushpendu
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'DPBS_VERSION', '1.7.0' );
+define( 'DPBS_VERSION', '1.9.0' );
 define( 'DPBS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'DPBS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -20,6 +20,41 @@ define( 'DPBS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
    Everything else (regular day-pass services) is completely untouched. */
 define( 'DPBS_SUITE_SERVICE_ID', 357 );
 define( 'DPBS_DB_VERSION', '3' ); // bump when dpbs_bookings schema changes
+
+/* NEW: Branded "From" name/email for booking emails ------------------------
+   By default wp_mail() sends as "WordPress <wordpress@yourdomain.com>",
+   which is why booking emails were showing up as "WordPress" instead of
+   "ThinkHaus". dpbs_send_mail() below wraps wp_mail() and temporarily
+   applies these From values ONLY for the duration of that single send, so
+   nothing else on the site (other plugins/WP core emails) is affected. */
+define( 'DPBS_MAIL_FROM_NAME', 'ThinkHaus' );
+define( 'DPBS_MAIL_FROM_EMAIL', 'no-reply@thinkhaus.co.in' );
+
+function dpbs_mail_from_email( $original ) { return DPBS_MAIL_FROM_EMAIL; }
+function dpbs_mail_from_name( $original ) { return DPBS_MAIL_FROM_NAME; }
+
+/**
+ * Drop-in replacement for wp_mail() used everywhere in this plugin, so all
+ * booking-related emails (admin notifications + customer confirmations)
+ * show up as "ThinkHaus <no-reply@thinkhaus.co.in>" instead of the default
+ * "WordPress <wordpress@yourdomain.com>".
+ *
+ * NOTE: for this to land in inboxes (not spam) and not get silently
+ * rewritten by the mail server, no-reply@thinkhaus.co.in should be a real
+ * address on the thinkhaus.co.in domain, and the site should be sending
+ * through an SMTP service (e.g. WP Mail SMTP + a provider like SES/SendGrid)
+ * with SPF/DKIM configured for thinkhaus.co.in. Without that, some mail
+ * servers ignore the From name/email set here and substitute their own.
+ */
+function dpbs_send_mail( $to, $subject, $message, $headers = '', $attachments = array() ) {
+    add_filter( 'wp_mail_from', 'dpbs_mail_from_email' );
+    add_filter( 'wp_mail_from_name', 'dpbs_mail_from_name' );
+    $sent = wp_mail( $to, $subject, $message, $headers, $attachments );
+    remove_filter( 'wp_mail_from', 'dpbs_mail_from_email' );
+    remove_filter( 'wp_mail_from_name', 'dpbs_mail_from_name' );
+    return $sent;
+}
+
 /* NEW: Tax system. Adds subtotal_amount/tax_amount/tax_percent columns to
    dpbs_bookings (via the existing dpbs_maybe_upgrade_db auto-migration) and
    a Tax Settings card on the Settings page. When enabled, tax is calculated
@@ -153,6 +188,113 @@ function dpbs_resolve_post_id( $value, $post_type = 'city' ) {
     }
     
     return '';
+}
+
+/* NEW: Customer confirmation email -----------------------------------------
+   Directions link: uses the location's "google_location" custom field
+   (set on the city CPT post) as the Google Maps link when present, with a
+   few other commonly-used key names checked as a fallback, and finally
+   falls back to a Google Maps search link built from the location/city
+   name if nothing has been set at all. */
+function dpbs_get_location_maps_link( $location_id, $city_id = 0 ) {
+    $meta_keys = array( 'google_location', 'google_maps_link', '_dpbs_google_maps_link', 'maps_link', 'directions_link', 'map_url' );
+    foreach ( $meta_keys as $key ) {
+        $val = get_post_meta( $location_id, $key, true );
+        if ( ! empty( $val ) ) return esc_url_raw( $val );
+    }
+    $query_parts = array( get_the_title( $location_id ) );
+    if ( $city_id ) $query_parts[] = get_the_title( $city_id );
+    $query = implode( ', ', array_filter( $query_parts ) );
+    /* NEW: lets a site owner override the maps link logic entirely (e.g. to
+       pull from their own address field) without touching this file. */
+    return apply_filters( 'dpbs_location_maps_link', 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( $query ), $location_id, $city_id );
+}
+
+/**
+ * Sends the "your booking is confirmed" email to the customer (guest),
+ * separate from and in addition to the existing admin notification email.
+ * $duration is a plain string, e.g. "Full Day" or "3 Days", so both the
+ * regular day-pass flow and the Private Suites inquiry flow can reuse it.
+ */
+function dpbs_send_customer_confirmation_email( $args ) {
+    $guest_name  = $args['guest_name'];
+    $email       = $args['email'];
+    $date        = $args['date'];
+    $service_id  = $args['service_id'];
+    $duration    = $args['duration'];
+    $seats       = $args['seats'];
+    $location_id = $args['location_id'];
+    $city_id     = isset( $args['city_id'] ) ? $args['city_id'] : 0;
+
+    if ( ! is_email( $email ) ) return false;
+
+    $maps_link = dpbs_get_location_maps_link( $location_id, $city_id );
+
+    $subject = 'Your ThinkHaus Booking is Confirmed';
+    $message  = "Hi {$guest_name},\n\n";
+    $message .= "Your booking at ThinkHaus is confirmed!\n\n";
+    $message .= "Date of Booking: {$date}\n";
+    $message .= "Service Booked: " . get_the_title( $service_id ) . "\n";
+    $message .= "Duration: {$duration}\n";
+    $message .= "Number of Seats: {$seats}\n";
+    $message .= "Location: " . get_the_title( $location_id ) . "\n";
+    $message .= "Directions: {$maps_link}\n\n";
+    $message .= "We look forward to welcoming you to ThinkHaus — Built for what's next.";
+
+    return dpbs_send_mail( $email, $subject, $message );
+}
+
+/**
+ * Sends the "we received your inquiry" email to the customer for a Private
+ * Suites inquiry. Deliberately separate from dpbs_send_customer_confirmation_email()
+ * above: a suite inquiry has no payment, a date *range* instead of a single
+ * date, and a couple of suite-only fields (Company, Manager Seats), so it
+ * needs its own wording and field list rather than reusing the paid-booking
+ * "confirmed" template.
+ */
+function dpbs_send_suite_inquiry_customer_email( $args ) {
+    $guest_name   = $args['guest_name'];
+    $email        = $args['email'];
+    $company      = $args['company'];
+    $service_id   = $args['service_id'];
+    $start_date   = $args['start_date'];
+    $end_date     = $args['end_date'];
+    $duration_days = $args['duration_days'];
+    $months       = $args['months'];
+    $seats        = $args['seats'];
+    $manager_seats = $args['manager_seats'];
+    $location_id  = $args['location_id'];
+    $city_id      = isset( $args['city_id'] ) ? $args['city_id'] : 0;
+    $totals       = $args['totals'];
+
+    if ( ! is_email( $email ) ) return false;
+
+    $maps_link = dpbs_get_location_maps_link( $location_id, $city_id );
+
+    $subject = 'We\'ve Received Your ThinkHaus Private Suite Inquiry';
+    $message  = "Hi {$guest_name},\n\n";
+    $message .= "Thank you for your interest in ThinkHaus Private Suites! We've received your inquiry and our team will get back to you within 24 hours to confirm availability and finalize the details.\n\n";
+    $message .= "Here's a summary of your inquiry:\n\n";
+    $message .= "Service: " . get_the_title( $service_id ) . "\n";
+    if ( ! empty( $company ) ) {
+        $message .= "Company: {$company}\n";
+    }
+    $message .= "Start Date: {$start_date}\n";
+    $message .= "End Date: {$end_date}\n";
+    $message .= "Duration: {$duration_days} day" . ( $duration_days > 1 ? 's' : '' ) . " ({$months} month" . ( $months > 1 ? 's' : '' ) . ")\n";
+    $message .= "Number of Seats: {$seats}\n";
+    $message .= "Manager Seats: " . ( $manager_seats ?: 'No' ) . "\n";
+    $message .= "Location: " . get_the_title( $location_id ) . "\n";
+    $message .= "Directions: {$maps_link}\n\n";
+    $message .= "Estimated Subtotal: ₹" . number_format( $totals['subtotal'], 2 ) . "\n";
+    if ( $totals['tax_amount'] > 0 ) {
+        $message .= "Estimated " . $totals['tax_label'] . " ({$totals['tax_rate']}%): ₹" . number_format( $totals['tax_amount'], 2 ) . "\n";
+    }
+    $message .= "Estimated Total: ₹" . number_format( $totals['total'], 2 ) . "\n\n";
+    $message .= "Please note: this is an inquiry, not a confirmed booking. No payment has been collected, and your Private Suite will be confirmed once our team reaches out to you.\n\n";
+    $message .= "We look forward to welcoming you to ThinkHaus — Built for what's next.";
+
+    return dpbs_send_mail( $email, $subject, $message );
 }
 
 /**
@@ -695,6 +837,19 @@ if ( isset( $_GET['location'] ) ) {
     wp_enqueue_script( 'razorpay-checkout', 'https://checkout.razorpay.com/v1/checkout.js', array(), null, true );
     wp_enqueue_script( 'dpbs-front-js', DPBS_PLUGIN_URL . 'assets/js/frontend.js', array('jquery', 'razorpay-checkout'), DPBS_VERSION, true );
 
+    $services = get_posts( array( 'post_type' => 'service', 'numberposts' => -1, 'post_status' => 'publish' ) );
+
+    /* NEW: default to the first published service (e.g. "Hotdesk") when none
+       was explicitly requested via a singular service page or URL param, so
+       the dropdown shows it pre-selected instead of the blank "Select
+       Service" placeholder. This only changes what's pre-selected - the
+       placeholder option is still the first literal <option> in the
+       markup and the URL-param / singular-page logic above still wins
+       whenever a service is actually specified, so nothing else changes. */
+    if ( empty( $atts['service_id'] ) && ! empty( $services ) ) {
+        $atts['service_id'] = $services[0]->ID;
+    }
+
     wp_localize_script( 'dpbs-front-js', 'dpbs_obj', array(
         'ajax_url'      => admin_url( 'admin-ajax.php' ),
         'nonce'         => wp_create_nonce('dpbs_nonce'),
@@ -709,7 +864,6 @@ if ( isset( $_GET['location'] ) ) {
         'suite_max_days'    => intval( get_option( 'dpbs_suite_max_days', 30 ) ),
     ) );
 
-    $services = get_posts( array( 'post_type' => 'service', 'numberposts' => -1, 'post_status' => 'publish' ) );
     $cities = get_posts( array( 'post_type' => 'city', 'post_parent' => 0, 'numberposts' => -1, 'post_status' => 'publish' ) );
 
     // If a service is preset (via singular page or URL param), only show cities that offer it
@@ -829,7 +983,7 @@ if ( isset( $_GET['location'] ) ) {
                             <select name="seats" id="<?php echo $iid; ?>-seats" class="dpbs-seats" required>
                                 <option value="">No. of Seats</option>
                                 <?php for ($i = 1; $i <= 50; $i++): ?>
-                                    <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
+                                    <option value="<?php echo $i; ?>" <?php selected( $i, 1 ); ?>><?php echo $i; ?></option>
                                 <?php endfor; ?>
                             </select>
                         </div>
@@ -1394,7 +1548,7 @@ function dpbs_verify_payment() {
            booking can be reconciled/recorded manually. */
         if ( $inserted === false ) {
             error_log( 'DPBS: booking insert failed after verified payment. Order: ' . $order_id . ' Payment: ' . $payment_id . ' DB error: ' . $wpdb->last_error );
-            wp_mail(
+            dpbs_send_mail(
                 $admin_email,
                 'URGENT: Day Pass booking NOT saved after successful payment',
                 "A Razorpay payment was successfully verified but the booking could not be saved to the database.\n\n" .
@@ -1413,7 +1567,22 @@ function dpbs_verify_payment() {
                 $message .= $totals['tax_label'] . " ({$totals['tax_rate']}%): ₹" . number_format( $totals['tax_amount'], 2 ) . "\n";
             }
             $message .= "Total Paid: ₹{$total_amount}\nRazorpay Payment ID: {$payment_id}";
-            wp_mail( $admin_email, $subject, $message );
+            dpbs_send_mail( $admin_email, $subject, $message );
+
+            /* NEW: also email the customer their booking confirmation.
+               Purely additive - if this fails for any reason it does not
+               affect the admin email above or the "verified" response, so
+               the customer's payment/booking flow is never impacted. */
+            dpbs_send_customer_confirmation_email( array(
+                'guest_name'  => sanitize_text_field( $_POST['full_name'] ),
+                'email'       => sanitize_email( $_POST['email'] ),
+                'date'        => $date,
+                'service_id'  => $service_id,
+                'duration'    => 'Full Day',
+                'seats'       => $seats,
+                'location_id' => $location_id,
+                'city_id'     => $city_id,
+            ) );
         }
 
         echo 'verified';
@@ -1550,7 +1719,29 @@ function dpbs_submit_suite_booking() {
         $message .= "Estimated " . $totals['tax_label'] . " ({$totals['tax_rate']}%): ₹" . number_format( $totals['tax_amount'], 2 ) . "\n";
     }
     $message .= "Estimated Total: ₹" . number_format( $total_amount, 2 ) . "\n";
-    wp_mail( $admin_email, $subject, $message );
+    dpbs_send_mail( $admin_email, $subject, $message );
+
+    /* NEW: also email the customer confirming their inquiry was received.
+       Uses the dedicated inquiry-email template (not the paid-booking
+       "confirmed" one) since no payment was collected and the fields
+       differ (date range, company, manager seats). Purely additive -
+       failures here don't affect the admin email above or the success
+       response returned to the browser. */
+    dpbs_send_suite_inquiry_customer_email( array(
+        'guest_name'    => $full_name,
+        'email'         => $email,
+        'company'       => $company,
+        'service_id'    => $service_id,
+        'start_date'    => $start_date,
+        'end_date'      => $end_date,
+        'duration_days' => $duration,
+        'months'        => $months,
+        'seats'         => $seats,
+        'manager_seats' => $manager,
+        'location_id'   => $location_id,
+        'city_id'       => $city_id,
+        'totals'        => $totals,
+    ) );
 
     echo json_encode( array(
         'success' => true,
