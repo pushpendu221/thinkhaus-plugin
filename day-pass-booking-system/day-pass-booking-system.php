@@ -2,13 +2,13 @@
 /**
  * Plugin Name: Day Pass Booking System
  * Description: Companion plugin for Service/City CPTs. Adds a day pass booking form with custom calendar, seat tracking, and Razorpay integration.
- * Version: 1.9.0
+ * Version: 2.0.0
  * Author: Pushpendu
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'DPBS_VERSION', '1.9.0' );
+define( 'DPBS_VERSION', '2.0.0' );
 define( 'DPBS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'DPBS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -53,6 +53,54 @@ function dpbs_send_mail( $to, $subject, $message, $headers = '', $attachments = 
     remove_filter( 'wp_mail_from', 'dpbs_mail_from_email' );
     remove_filter( 'wp_mail_from_name', 'dpbs_mail_from_name' );
     return $sent;
+}
+
+/* NEW: WhatsApp notifications via AiSensy -----------------------------------
+   Sends the booking confirmation as a WhatsApp message alongside the email,
+   using AiSensy's Campaign API. Requires an AiSensy account with an approved
+   message template ("campaign") - see the WhatsApp Notifications card on
+   the plugin's Settings page. Entirely additive and fails silently (logged,
+   not shown to the customer) if not configured, so it can never block a
+   booking or break the existing email flow.
+
+   $template_params must be an ordered array of strings matching the {{1}},
+   {{2}}... placeholders in the approved AiSensy template, in order. */
+function dpbs_send_whatsapp_message( $phone, $campaign_name, $template_params, $guest_name = '' ) {
+    if ( get_option( 'dpbs_whatsapp_enabled', 'no' ) !== 'yes' ) return false;
+
+    $api_key = get_option( 'dpbs_aisensy_api_key' );
+    if ( empty( $api_key ) || empty( $campaign_name ) ) return false;
+
+    // Normalize to E.164-ish digits-only with country code (defaults to 91/India
+    // if a 10-digit local number was entered without one).
+    $digits = preg_replace( '/\D/', '', $phone );
+    if ( strlen( $digits ) === 10 ) $digits = '91' . $digits;
+    if ( empty( $digits ) ) return false;
+
+    $body = array(
+        'apiKey'       => $api_key,
+        'campaignName' => $campaign_name,
+        'destination'  => $digits,
+        'userName'     => $guest_name,
+        'templateParams' => array_values( $template_params ),
+    );
+
+    $response = wp_remote_post( 'https://backend.aisensy.com/campaign/t1/api/v2', array(
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => wp_json_encode( $body ),
+        'timeout' => 15,
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        error_log( 'DPBS: WhatsApp send failed - ' . $response->get_error_message() );
+        return false;
+    }
+    $code = wp_remote_retrieve_response_code( $response );
+    if ( $code < 200 || $code >= 300 ) {
+        error_log( 'DPBS: WhatsApp send returned HTTP ' . $code . ' - ' . wp_remote_retrieve_body( $response ) );
+        return false;
+    }
+    return true;
 }
 
 /* NEW: Tax system. Adds subtotal_amount/tax_amount/tax_percent columns to
@@ -515,6 +563,45 @@ function dpbs_settings_page() {
                             <?php submit_button('Save Settings', 'primary', 'submit', false); ?>
                         </div>
                     </div>
+
+                    <div class="cwf-card">
+                        <div class="cwf-card-title">WhatsApp Notifications (AiSensy)</div>
+                        <p class="description" style="margin-bottom: 20px;">Sends the same booking confirmation as a WhatsApp message, in addition to the email. Requires an AiSensy account with an approved template ("campaign") for each message below. See <a href="https://docs.aisensy.com/" target="_blank" rel="noopener">AiSensy's docs</a> for creating a WABA + template.</p>
+                        <div class="cwf-form-row">
+                            <label>Enable WhatsApp Messages</label>
+                            <div class="cwf-form-row-control">
+                                <input type="hidden" name="dpbs_whatsapp_enabled" value="no" />
+                                <label style="font-weight:normal;">
+                                    <input type="checkbox" name="dpbs_whatsapp_enabled" value="yes" <?php checked( get_option( 'dpbs_whatsapp_enabled', 'no' ), 'yes' ); ?> />
+                                    Also send booking confirmations via WhatsApp
+                                </label>
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>AiSensy API Key</label>
+                            <div class="cwf-form-row-control">
+                                <input type="text" name="dpbs_aisensy_api_key" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_aisensy_api_key') ); ?>" />
+                                <p class="description">From AiSensy dashboard → Manage → API Keys.</p>
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Day Pass Campaign Name</label>
+                            <div class="cwf-form-row-control">
+                                <input type="text" name="dpbs_aisensy_campaign_daypass" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_aisensy_campaign_daypass') ); ?>" placeholder="e.g. daypass_booking_confirmed" />
+                                <p class="description">Name of the approved AiSensy template used for regular (paid) Day Pass confirmations.</p>
+                            </div>
+                        </div>
+                        <div class="cwf-form-row">
+                            <label>Private Suites Campaign Name</label>
+                            <div class="cwf-form-row-control">
+                                <input type="text" name="dpbs_aisensy_campaign_suite" class="regular-text" value="<?php echo esc_attr( get_option('dpbs_aisensy_campaign_suite') ); ?>" placeholder="e.g. suite_inquiry_received" />
+                                <p class="description">Name of the approved AiSensy template used for Private Suites inquiries.</p>
+                            </div>
+                        </div>
+                        <div class="cwf-card-footer">
+                            <?php submit_button('Save Settings', 'primary', 'submit', false); ?>
+                        </div>
+                    </div>
                 </form>
                 
                 <div class="cwf-card">
@@ -653,6 +740,11 @@ function dpbs_register_settings() {
     register_setting( 'dpbs_settings_group', 'dpbs_tax_enabled', array( 'sanitize_callback' => 'dpbs_sanitize_tax_enabled' ) );
     register_setting( 'dpbs_settings_group', 'dpbs_tax_label' );
     register_setting( 'dpbs_settings_group', 'dpbs_tax_percent' );
+
+    register_setting( 'dpbs_settings_group', 'dpbs_whatsapp_enabled', array( 'sanitize_callback' => 'dpbs_sanitize_tax_enabled' ) );
+    register_setting( 'dpbs_settings_group', 'dpbs_aisensy_api_key' );
+    register_setting( 'dpbs_settings_group', 'dpbs_aisensy_campaign_daypass' );
+    register_setting( 'dpbs_settings_group', 'dpbs_aisensy_campaign_suite' );
 }
 
 /* Checkboxes only POST a value when checked, so without this an unchecked
@@ -1583,6 +1675,23 @@ function dpbs_verify_payment() {
                 'location_id' => $location_id,
                 'city_id'     => $city_id,
             ) );
+
+            /* NEW: also send the same confirmation over WhatsApp (no-op if
+               not configured in Settings - see dpbs_send_whatsapp_message()). */
+            dpbs_send_whatsapp_message(
+                sanitize_text_field( $_POST['phone'] ),
+                get_option( 'dpbs_aisensy_campaign_daypass' ),
+                array(
+                    sanitize_text_field( $_POST['full_name'] ),
+                    $date,
+                    get_the_title( $service_id ),
+                    'Full Day',
+                    $seats,
+                    get_the_title( $location_id ),
+                    dpbs_get_location_maps_link( $location_id, $city_id ),
+                ),
+                sanitize_text_field( $_POST['full_name'] )
+            );
         }
 
         echo 'verified';
@@ -1742,6 +1851,25 @@ function dpbs_submit_suite_booking() {
         'city_id'       => $city_id,
         'totals'        => $totals,
     ) );
+
+    /* NEW: also send the same inquiry confirmation over WhatsApp (no-op if
+       not configured in Settings - see dpbs_send_whatsapp_message()). */
+    dpbs_send_whatsapp_message(
+        $phone_clean,
+        get_option( 'dpbs_aisensy_campaign_suite' ),
+        array(
+            $full_name,
+            get_the_title( $service_id ),
+            $start_date,
+            $end_date,
+            $duration . ' days (' . $months . ' month' . ( $months > 1 ? 's' : '' ) . ')',
+            $seats,
+            $manager ?: 'No',
+            get_the_title( $location_id ),
+            dpbs_get_location_maps_link( $location_id, $city_id ),
+        ),
+        $full_name
+    );
 
     echo json_encode( array(
         'success' => true,
