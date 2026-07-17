@@ -604,14 +604,14 @@
           return;
         }
 
-        if (key === "full_name" && value && !FULL_NAME_REGEX.test(value)) {
-          showFieldError(
-            control,
-            "Please enter your full name (first and last name).",
-          );
-          isValid = false;
-          firstInvalidControl = firstInvalidControl || control;
-        }
+        // if (key === "full_name" && value && !FULL_NAME_REGEX.test(value)) {
+        //   showFieldError(
+        //     control,
+        //     "Please enter your full name (first and last name).",
+        //   );
+        //   isValid = false;
+        //   firstInvalidControl = firstInvalidControl || control;
+        // }
 
         if (key === "phone_number" && value && !PHONE_REGEX.test(value)) {
           showFieldError(

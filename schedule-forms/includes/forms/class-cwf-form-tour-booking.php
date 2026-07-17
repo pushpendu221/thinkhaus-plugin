@@ -51,6 +51,24 @@ class CWF_Form_Tour_Booking extends CWF_Form_Module {
 				'required' => true,
 			),
 			array(
+				'key'      => 'guest_email',
+				'label'    => 'Email Address',
+				'type'     => 'email',
+				'required' => true,
+			),
+			array(
+				'key'      => 'select_city',
+				'label'    => 'City',
+				'type'     => 'cwf_city_select',
+				'required' => true,
+			),
+			array(
+				'key'      => 'select_location',
+				'label'    => 'Location',
+				'type'     => 'cwf_location_select',
+				'required' => true,
+			),
+			array(
 				'key'      => 'tour_date',
 				'label'    => 'Date',
 				'type'     => 'cwf_date_picker',

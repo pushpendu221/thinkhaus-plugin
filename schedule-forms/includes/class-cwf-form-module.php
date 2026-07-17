@@ -83,9 +83,15 @@ abstract class CWF_Form_Module {
 
 	public function get_settings() {
 		$defaults = array(
-			'notify_email' => get_option( 'admin_email' ),
-			'time_start'   => 10, // 24h hour
-			'time_end'     => 13,
+			'notify_email'     => get_option( 'admin_email' ),
+			'time_start'       => 10, // 24h hour
+			'time_end'         => 13,
+			// Used to build the guest confirmation email (see send_guest_confirmation()).
+			'location_address' => '',
+			'maps_link'        => '',
+			'contact_phone'    => '',
+			'from_name'        => 'ThinkHaus',
+			'from_email'       => 'no-reply@thinkhaus.co.in',
 		);
 		$saved = get_option( $this->settings_option_key(), array() );
 		return wp_parse_args( is_array( $saved ) ? $saved : array(), $defaults );
@@ -142,6 +148,8 @@ abstract class CWF_Form_Module {
 		add_action( 'wp_ajax_nopriv_cwf_submit_' . $this->action_slug(), array( $this, 'handle_submit' ) );
 		add_action( 'wp_ajax_cwf_calendar_' . $this->action_slug(), array( $this, 'handle_calendar_fetch' ) );
 		add_action( 'wp_ajax_nopriv_cwf_calendar_' . $this->action_slug(), array( $this, 'handle_calendar_fetch' ) );
+		add_action( 'wp_ajax_cwf_locations_' . $this->action_slug(), array( $this, 'handle_get_locations' ) );
+		add_action( 'wp_ajax_nopriv_cwf_locations_' . $this->action_slug(), array( $this, 'handle_get_locations' ) );
 		add_action( 'wp_ajax_cwf_admin_calendar_fetch_' . $this->action_slug(), array( $this, 'handle_admin_calendar_fetch' ) );
 		add_action( 'wp_ajax_cwf_admin_calendar_set_' . $this->action_slug(), array( $this, 'handle_admin_calendar_set' ) );
 		add_action( 'admin_post_cwf_export_' . $this->action_slug(), array( $this, 'handle_export_csv' ) );
@@ -199,8 +207,76 @@ abstract class CWF_Form_Module {
 				</div>
 			</form>
 		</div>
+		<?php if ( $this->has_city_location_fields() ) : ?>
+		<script>
+		(function () {
+			document.querySelectorAll( '.cwf-form[data-cwf-slug="<?php echo esc_js( $this->slug ); ?>"]' ).forEach( function ( form ) {
+				var citySelect     = form.querySelector( '[data-cwf-city-select]' );
+				var locationSelect = form.querySelector( '[data-cwf-location-select]' );
+				if ( ! citySelect || ! locationSelect || typeof cwfFrontend === 'undefined' ) {
+					return;
+				}
+
+				citySelect.addEventListener( 'change', function () {
+					var cityId = citySelect.value;
+					locationSelect.innerHTML = '';
+					locationSelect.disabled  = true;
+
+					if ( ! cityId ) {
+						locationSelect.innerHTML = '<option value="">Select a city first...</option>';
+						return;
+					}
+
+					locationSelect.innerHTML = '<option value="">Loading...</option>';
+
+					var body = new URLSearchParams();
+					body.set( 'action', 'cwf_locations_<?php echo esc_js( $this->action_slug() ); ?>' );
+					body.set( 'nonce', cwfFrontend.nonce );
+					body.set( 'city_id', cityId );
+
+					fetch( cwfFrontend.ajaxUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body: body.toString()
+					} )
+					.then( function ( res ) { return res.json(); } )
+					.then( function ( json ) {
+						locationSelect.innerHTML = '<option value="">Select a location...</option>';
+						if ( json && json.success && json.data && json.data.locations ) {
+							json.data.locations.forEach( function ( loc ) {
+								var opt = document.createElement( 'option' );
+								opt.value = loc.id;
+								opt.textContent = loc.title;
+								locationSelect.appendChild( opt );
+							} );
+						}
+						locationSelect.disabled = false;
+					} )
+					.catch( function () {
+						locationSelect.innerHTML = '<option value="">Could not load locations</option>';
+						locationSelect.disabled  = false;
+					} );
+				} );
+			} );
+		})();
+		</script>
+		<?php endif; ?>
 		<?php
 		return ob_get_clean();
+	}
+
+	/**
+	 * Whether this form has a City -> Location cascading pair, so we only
+	 * output the AJAX cascade script and only special-case those fields in
+	 * emails/admin screens when a form actually uses them.
+	 */
+	protected function has_city_location_fields() {
+		foreach ( $this->fields as $field ) {
+			if ( 'cwf_city_select' === $field['type'] ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	protected function render_field( $field ) {
@@ -234,6 +310,38 @@ abstract class CWF_Form_Module {
 					. '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>'
 					. '</span>';
 				echo '<div class="cwf-calendar-popover" data-cwf-calendar></div>';
+				echo '</div>';
+				break;
+
+			case 'cwf_city_select':
+				// Top-level 'city' CPT posts (post_parent = 0) — e.g. "Bangalore", "Kolkata".
+				echo '<div class="cwf-select-wrap">';
+				echo '<select id="' . esc_attr( $id ) . '" name="' . esc_attr( $key ) . '" data-cwf-city-select ' . ( $required ? 'required' : '' ) . '>';
+				echo '<option value="">Select a city...</option>';
+				$cwf_cities = get_posts(
+					array(
+						'post_type'      => 'city',
+						'post_parent'    => 0,
+						'posts_per_page' => -1,
+						'orderby'        => 'title',
+						'order'          => 'ASC',
+						'post_status'    => 'publish',
+					)
+				);
+				foreach ( $cwf_cities as $cwf_city ) {
+					echo '<option value="' . esc_attr( $cwf_city->ID ) . '">' . esc_html( $cwf_city->post_title ) . '</option>';
+				}
+				echo '</select>';
+				echo '</div>';
+				break;
+
+			case 'cwf_location_select':
+				// Child 'city' CPT posts under the selected city, loaded via AJAX
+				// once a city is chosen (see the inline script in render_shortcode()).
+				echo '<div class="cwf-select-wrap">';
+				echo '<select id="' . esc_attr( $id ) . '" name="' . esc_attr( $key ) . '" data-cwf-location-select disabled ' . ( $required ? 'required' : '' ) . '>';
+				echo '<option value="">Select a city first...</option>';
+				echo '</select>';
 				echo '</div>';
 				break;
 
@@ -319,6 +427,44 @@ abstract class CWF_Form_Module {
 				'days'  => $statuses,
 			)
 		);
+	}
+
+	/**
+	 * AJAX: return the Location (child 'city' CPT) options for a given
+	 * parent City ID, for the cwf_city_select / cwf_location_select
+	 * cascading pair. Mirrors the 'city' CPT structure already used by
+	 * service-detail-shortcode.php (sds_get_field / google_location, etc.),
+	 * where top-level posts are Cities and their children are Locations.
+	 */
+	public function handle_get_locations() {
+		check_ajax_referer( 'cwf_frontend_nonce', 'nonce' );
+
+		$city_id = isset( $_POST['city_id'] ) ? (int) $_POST['city_id'] : 0;
+
+		if ( ! $city_id ) {
+			wp_send_json_error( array( 'message' => 'Invalid city.' ) );
+		}
+
+		$locations = get_posts(
+			array(
+				'post_type'      => 'city',
+				'post_parent'    => $city_id,
+				'posts_per_page' => -1,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+				'post_status'    => 'publish',
+			)
+		);
+
+		$options = array();
+		foreach ( $locations as $location ) {
+			$options[] = array(
+				'id'    => $location->ID,
+				'title' => $location->post_title,
+			);
+		}
+
+		wp_send_json_success( array( 'locations' => $options ) );
 	}
 
 	/**
@@ -442,6 +588,30 @@ abstract class CWF_Form_Module {
 			$clean[ $key ] = $value;
 		}
 
+		// If this form has the City -> Location cascading pair, make sure the
+		// submitted location is actually a child of the submitted city (guards
+		// against a tampered/stale request). No-op for forms without these fields.
+		if ( $this->has_city_location_fields() ) {
+			$submitted_city_id     = 0;
+			$submitted_location_id = 0;
+
+			foreach ( $this->fields as $field ) {
+				if ( 'cwf_city_select' === $field['type'] && ! empty( $clean[ $field['key'] ] ) ) {
+					$submitted_city_id = (int) $clean[ $field['key'] ];
+				}
+				if ( 'cwf_location_select' === $field['type'] && ! empty( $clean[ $field['key'] ] ) ) {
+					$submitted_location_id = (int) $clean[ $field['key'] ];
+				}
+			}
+
+			if ( $submitted_location_id && $submitted_city_id ) {
+				$location_post = get_post( $submitted_location_id );
+				if ( ! $location_post || (int) $location_post->post_parent !== $submitted_city_id ) {
+					$errors[] = 'Selected location does not match the selected city.';
+				}
+			}
+		}
+
 		if ( ! empty( $errors ) ) {
 			wp_send_json_error( array( 'message' => implode( ' ', $errors ) ) );
 		}
@@ -470,6 +640,7 @@ abstract class CWF_Form_Module {
 		update_post_meta( $post_id, '_cwf_submitted_at', current_time( 'mysql' ) );
 
 		$this->send_admin_notification( $post_id, $clean );
+		$this->send_guest_confirmation( $post_id, $clean );
 
 		/**
 		 * Fires after a CWF submission is saved. Lets concrete form classes
@@ -489,16 +660,203 @@ abstract class CWF_Form_Module {
 		$lines = array();
 		foreach ( $this->fields as $field ) {
 			$key = $field['key'];
+			// City/Location are printed together as one readable line below,
+			// instead of their raw post IDs here.
+			if ( in_array( $field['type'], array( 'cwf_city_select', 'cwf_location_select' ), true ) ) {
+				continue;
+			}
 			if ( isset( $clean[ $key ] ) && '' !== $clean[ $key ] ) {
 				$lines[] = $field['label'] . ': ' . $clean[ $key ];
 			}
 		}
+
+		$location_display = $this->get_city_location_display( $clean );
+		if ( $location_display ) {
+			$lines[] = 'Location: ' . $location_display;
+		}
+
 		$lines[] = '';
 		$lines[] = 'View in admin: ' . admin_url( 'admin.php?page=cwf_' . $this->slug . '_submissions&view=' . $post_id );
 
 		$body = implode( "\n", $lines );
 
 		wp_mail( $to, $subject, $body );
+	}
+
+	/**
+	 * Reads a field's value the same way service-detail-shortcode.php does:
+	 * prefer SCF's get_field() when available, else fall back to plain
+	 * post meta. Used to pull 'google_location' off the Location (child)
+	 * post for the guest confirmation email.
+	 */
+	protected function read_field( $key, $post_id ) {
+		if ( function_exists( 'get_field' ) ) {
+			$val = get_field( $key, $post_id );
+		} else {
+			$val = get_post_meta( $post_id, $key, true );
+		}
+		return is_string( $val ) ? trim( $val ) : '';
+	}
+
+	/**
+	 * Builds "Location Title, City Title" from a form's cwf_city_select /
+	 * cwf_location_select field values. Returns '' if this form doesn't use
+	 * that field pair, or nothing was selected.
+	 */
+	/**
+	 * Display-friendly value for a stored submission field. Only City/Location
+	 * select fields get special handling (post ID -> title); every other
+	 * field type returns the raw stored meta exactly as before.
+	 */
+	protected function get_field_display_value( $post_id, $field ) {
+		$raw = get_post_meta( $post_id, $field['key'], true );
+
+		if ( in_array( $field['type'], array( 'cwf_city_select', 'cwf_location_select' ), true ) && $raw ) {
+			$title = get_the_title( (int) $raw );
+			return $title ? $title : $raw;
+		}
+
+		return $raw;
+	}
+
+	protected function get_city_location_display( $clean ) {
+		$city_id     = 0;
+		$location_id = 0;
+
+		foreach ( $this->fields as $field ) {
+			if ( 'cwf_city_select' === $field['type'] && ! empty( $clean[ $field['key'] ] ) ) {
+				$city_id = (int) $clean[ $field['key'] ];
+			}
+			if ( 'cwf_location_select' === $field['type'] && ! empty( $clean[ $field['key'] ] ) ) {
+				$location_id = (int) $clean[ $field['key'] ];
+			}
+		}
+
+		if ( ! $city_id && ! $location_id ) {
+			return '';
+		}
+
+		$location_title = $location_id ? get_the_title( $location_id ) : '';
+		$city_title     = $city_id ? get_the_title( $city_id ) : '';
+
+		return implode( ', ', array_filter( array( $location_title, $city_title ) ) );
+	}
+
+	/**
+	 * Resolves the ID of the selected Location (child 'city' CPT post) for
+	 * this submission, if the form has the cascading pair. Returns 0 if not.
+	 */
+	protected function get_selected_location_id( $clean ) {
+		foreach ( $this->fields as $field ) {
+			if ( 'cwf_location_select' === $field['type'] && ! empty( $clean[ $field['key'] ] ) ) {
+				return (int) $clean[ $field['key'] ];
+			}
+		}
+		return 0;
+	}
+
+	/**
+	 * Emails the GUEST (the person who filled the form) a booking
+	 * confirmation, using the ThinkHaus tour-confirmation template.
+	 *
+	 * Deliberately scoped to calendar-based forms (tour_date/tour_time
+	 * fields exist) that also collect an email address, so forms without
+	 * an email field (e.g. any future non-calendar form) are completely
+	 * unaffected — this method just returns early for them.
+	 */
+	protected function send_guest_confirmation( $post_id, $clean ) {
+		if ( ! $this->has_calendar ) {
+			return;
+		}
+
+		// Find the guest's email + name from whatever fields this form defines,
+		// rather than hardcoding keys, so it stays safe if fields are reordered.
+		$guest_email = '';
+		$guest_name  = '';
+
+		foreach ( $this->fields as $field ) {
+			if ( 'email' === $field['type'] && ! empty( $clean[ $field['key'] ] ) ) {
+				$guest_email = $clean[ $field['key'] ];
+			}
+			if ( 'full_name' === $field['key'] && ! empty( $clean[ $field['key'] ] ) ) {
+				$guest_name = $clean[ $field['key'] ];
+			}
+		}
+
+		// No email collected on this form (or invalid) — nothing to send.
+		if ( empty( $guest_email ) || ! is_email( $guest_email ) ) {
+			return;
+		}
+
+		if ( empty( $guest_name ) ) {
+			$guest_name = 'Guest';
+		}
+
+		$settings = $this->get_settings();
+
+		$date_display = '';
+		if ( ! empty( $clean['tour_date'] ) ) {
+			$timestamp    = strtotime( $clean['tour_date'] );
+			$date_display = $timestamp ? date_i18n( 'l, F j, Y', $timestamp ) : $clean['tour_date'];
+		}
+
+		$time_slots   = $this->get_time_slots();
+		$time_display = '';
+		if ( ! empty( $clean['tour_time'] ) ) {
+			$time_display = isset( $time_slots[ $clean['tour_time'] ] ) ? $time_slots[ $clean['tour_time'] ] : $clean['tour_time'];
+		}
+
+		// Prefer "Location Title, City Title" from the cascading fields (if this
+		// form has them); otherwise fall back to the plain settings-configured
+		// address, exactly as before this feature existed.
+		$address = $this->get_city_location_display( $clean );
+		if ( '' === $address ) {
+			$address = $settings['location_address'];
+		}
+
+		// Directions: prefer the 'google_location' meta field on the selected
+		// Location (child post), same field service-detail-shortcode.php reads
+		// for its map embed. Falls back to the settings-configured maps_link,
+		// then to an auto-generated search link from the address.
+		$location_id = $this->get_selected_location_id( $clean );
+		$maps_link   = $location_id ? $this->read_field( 'google_location', $location_id ) : '';
+
+		if ( empty( $maps_link ) ) {
+			$maps_link = $settings['maps_link'];
+		}
+		if ( empty( $maps_link ) && ! empty( $address ) ) {
+			// Auto-fallback so the email still has a working directions link
+			// even if no explicit Maps URL is available anywhere.
+			$maps_link = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( $address );
+		}
+
+		$contact_phone = $settings['contact_phone'];
+		$from_name     = ! empty( $settings['from_name'] ) ? $settings['from_name'] : 'ThinkHaus';
+		$from_email    = ! empty( $settings['from_email'] ) ? $settings['from_email'] : 'no-reply@thinkhaus.co.in';
+
+		$subject = 'Your Tour at ThinkHaus is Scheduled!';
+
+		$lines   = array();
+		$lines[] = 'Hi ' . $guest_name . ',';
+		$lines[] = '';
+		$lines[] = 'Your tour of ThinkHaus has been scheduled successfully!';
+		$lines[] = '';
+		$lines[] = 'Date: ' . $date_display;
+		$lines[] = 'Time: ' . $time_display;
+		$lines[] = 'Location: ' . $address;
+		$lines[] = 'Directions: ' . $maps_link;
+		$lines[] = '';
+		$lines[] = 'Our team will be ready to show you around and help you find a workspace that suits your requirements. To reschedule or cancel your tour, please contact us at ' . $contact_phone . '.';
+		$lines[] = '';
+		$lines[] = "See you soon at ThinkHaus \u{2014} Built for what's next.";
+
+		$body = implode( "\n", $lines );
+
+		$headers = array(
+			'From: ' . $from_name . ' <' . $from_email . '>',
+		);
+
+		wp_mail( $guest_email, $subject, $body, $headers );
 	}
 
 	/* ------------------------------------------------------------------ */
@@ -510,9 +868,14 @@ abstract class CWF_Form_Module {
 		if ( isset( $_POST['cwf_settings_nonce'] ) && wp_verify_nonce( $_POST['cwf_settings_nonce'], 'cwf_save_settings_' . $this->slug ) ) {
 			$this->save_settings(
 				array(
-					'notify_email' => sanitize_email( wp_unslash( $_POST['notify_email'] ?? '' ) ),
-					'time_start'   => (int) ( $_POST['time_start'] ?? 10 ),
-					'time_end'     => (int) ( $_POST['time_end'] ?? 13 ),
+					'notify_email'     => sanitize_email( wp_unslash( $_POST['notify_email'] ?? '' ) ),
+					'time_start'       => (int) ( $_POST['time_start'] ?? 10 ),
+					'time_end'         => (int) ( $_POST['time_end'] ?? 13 ),
+					'location_address' => sanitize_text_field( wp_unslash( $_POST['location_address'] ?? '' ) ),
+					'maps_link'        => esc_url_raw( wp_unslash( $_POST['maps_link'] ?? '' ) ),
+					'contact_phone'    => sanitize_text_field( wp_unslash( $_POST['contact_phone'] ?? '' ) ),
+					'from_name'        => sanitize_text_field( wp_unslash( $_POST['from_name'] ?? '' ) ),
+					'from_email'       => sanitize_email( wp_unslash( $_POST['from_email'] ?? '' ) ),
 				)
 			);
 
@@ -560,6 +923,32 @@ abstract class CWF_Form_Module {
 									</select>
 								</div>
 								<p class="description">Generates consecutive 1-hour slots, e.g. 10AM&nbsp;&ndash;&nbsp;11AM, 11AM&nbsp;&ndash;&nbsp;12PM, etc.</p>
+							</div>
+						</div>
+						<?php endif; ?>
+
+						<?php if ( $this->has_calendar ) : ?>
+						<div class="cwf-form-row">
+							<label>Guest Confirmation Email</label>
+							<div class="cwf-form-row-control">
+								<p class="description">Sent automatically to the guest's email address after they book. Used to fill in the [Location], [Directions] and [Phone Number] placeholders.</p>
+
+								<p><label for="location_address" style="display:block;font-weight:600;margin-bottom:2px;">Location Address</label>
+								<input type="text" id="location_address" name="location_address" class="regular-text" value="<?php echo esc_attr( $settings['location_address'] ); ?>" placeholder="e.g. ThinkHaus, 3rd Floor, ABC Building, Kolkata" /></p>
+
+								<p><label for="maps_link" style="display:block;font-weight:600;margin-bottom:2px;">Google Maps Link</label>
+								<input type="url" id="maps_link" name="maps_link" class="regular-text" value="<?php echo esc_attr( $settings['maps_link'] ); ?>" placeholder="https://maps.google.com/?q=..." />
+								<span class="description">Leave blank to auto-generate a maps search link from the address above.</span></p>
+
+								<p><label for="contact_phone" style="display:block;font-weight:600;margin-bottom:2px;">Reschedule/Cancel Contact Phone</label>
+								<input type="text" id="contact_phone" name="contact_phone" class="regular-text" value="<?php echo esc_attr( $settings['contact_phone'] ); ?>" placeholder="e.g. +91 98765 43210" /></p>
+
+								<p><label for="from_name" style="display:block;font-weight:600;margin-bottom:2px;">"From" Name</label>
+								<input type="text" id="from_name" name="from_name" class="regular-text" value="<?php echo esc_attr( $settings['from_name'] ); ?>" /></p>
+
+								<p><label for="from_email" style="display:block;font-weight:600;margin-bottom:2px;">"From" Email</label>
+								<input type="email" id="from_email" name="from_email" class="regular-text" value="<?php echo esc_attr( $settings['from_email'] ); ?>" />
+								<span class="description">Your mail server/SMTP plugin must be authorized to send as this address, or some inboxes may reject/spam it.</span></p>
 							</div>
 						</div>
 						<?php endif; ?>
@@ -723,7 +1112,7 @@ abstract class CWF_Form_Module {
 								<td><input type="checkbox" name="post_ids[]" value="<?php echo esc_attr( $post->ID ); ?>" data-cwf-row-checkbox /></td>
 								<td><?php echo esc_html( $this->get_submitted_at_display( $post ) ); ?></td>
 								<?php foreach ( $this->fields as $field ) : ?>
-									<td><?php echo esc_html( get_post_meta( $post->ID, $field['key'], true ) ); ?></td>
+									<td><?php echo esc_html( $this->get_field_display_value( $post->ID, $field ) ); ?></td>
 								<?php endforeach; ?>
 								<td>
 									<a href="<?php echo esc_url( add_query_arg( 'view', $post->ID ) ); ?>">View</a>
@@ -811,7 +1200,7 @@ abstract class CWF_Form_Module {
 				<?php foreach ( $this->fields as $field ) : ?>
 					<tr>
 						<th><?php echo esc_html( $field['label'] ); ?></th>
-						<td><?php echo esc_html( get_post_meta( $post_id, $field['key'], true ) ); ?></td>
+						<td><?php echo esc_html( $this->get_field_display_value( $post_id, $field ) ); ?></td>
 					</tr>
 				<?php endforeach; ?>
 			</table>
@@ -859,7 +1248,7 @@ abstract class CWF_Form_Module {
 		foreach ( $posts as $post ) {
 			$row = array( $this->get_submitted_at_display( $post ) );
 			foreach ( $this->fields as $field ) {
-				$row[] = get_post_meta( $post->ID, $field['key'], true );
+				$row[] = $this->get_field_display_value( $post->ID, $field );
 			}
 			fputcsv( $out, $row );
 		}
