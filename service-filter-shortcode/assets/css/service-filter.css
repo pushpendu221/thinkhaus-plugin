@@ -8,9 +8,10 @@
 /* Scoped under .sfs-section so this never leaks into other .spaces-container
    usages elsewhere on the site — only this shortcode's markup is affected. */
 .sfs-section .spaces-container {
-  background-color: #e9e4db;
+  /* background-color: #e9e4db;
   padding: 28px;
-  border-radius: 14px;
+  border-radius: 14px; */
+  padding: 0px !important;
 }
 
 /* ── Filters layout (stacked, full-width fields) ─────────────────────────── */
@@ -27,7 +28,7 @@
 .sfs-section .filters .filter label {
   display: block;
   margin-bottom: 8px;
-  font-size: 0.95rem;
+  font-size: 16px;
   font-weight: 600;
   color: #1a1a1a;
 }
@@ -86,36 +87,46 @@
 .sfs-proceed-btn {
   display: flex;
   align-items: stretch;
+  justify-content: space-between;
   border: none;
-  padding: 0;
-  border-radius: 10px;
+  border-radius: 6.89px;
   overflow: hidden;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding: 3px;
   cursor: pointer;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  font-family: inherit;
+  width: 204px;
 }
 
 .sfs-proceed-text {
   display: flex;
   align-items: center;
-  padding: 16px 28px;
-  background: #fff;
-  font-size: 0.95rem;
-  font-weight: 600;
+  padding: 18px 20px;
+  font-weight: 500;
+  font-size: 17px;
+  font-family: "NeutraText", sans-serif;
   color: #1a1a1a;
+  background: #ffffff;
 }
 
 .sfs-proceed-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px 20px;
-  background: #f2711c;
-  color: #fff;
+  padding: 18px;
+  height: 56px;
+  width: 56px;
+  background: #fb5729;
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 1.15rem;
+  line-height: 1;
+  transition: background 0.15s ease;
 }
 
 .sfs-proceed-btn:not(:disabled):hover .sfs-proceed-icon {
-  background: #d95f0f;
+  background: #fb5729;
 }
 
 .sfs-proceed-btn:disabled {
@@ -170,4 +181,18 @@
 .sfs-section select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (max-width: 540px){
+  .sfs-proceed-text{
+    padding: 12px 20px;
+  }
+  .sfs-proceed-icon{
+    height: 46px;
+    width: 46px;
+    padding: 15px;
+  }
+  .sfs-proceed-btn{
+    width: auto;
+  }
 }

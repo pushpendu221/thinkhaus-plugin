@@ -17,7 +17,7 @@
 }
 
 .cfs-dropdown-layout {
-  max-width: 640px;
+  max-width: 742px;
   width: 100%;
 }
 
@@ -39,8 +39,9 @@
 }
 
 .cfs-field-label {
+  font-family: "NeutraText", sans-serif;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 16px;
   color: #1a1a1a;
   line-height: 1.2;
 }
@@ -211,15 +212,21 @@
 
 @media (max-width: 480px) {
   .cfs-proceed-row {
-    justify-content: stretch;
+    justify-content: flex-end;
   }
 
   .cfs-proceed-btn {
-    width: 100%;
+    width: auto;
   }
 
   .cfs-proceed-text {
     flex: 1;
     justify-content: center;
+    padding: 12px 20px;
+  }
+  .cfs-proceed-icon{
+    height: 46px;
+    width: 46px;
+    padding: 15px;
   }
 }
