@@ -70,6 +70,7 @@
       priceDisplay: container.find('[id$="-price-display"]'),
       priceSuffix: container.find('[id$="-price-suffix"]'),
       taxLine: container.find('[id$="-tax-line"]'),
+      gstNote: container.find('[id$="-gst-note"]'),
       formMessage: container.find(".dpbs-form-message"),
       submitBtn: container.find(".dpbs-submit-btn"),
       suiteFields: container.find(".dpbs-suite-field"),
@@ -486,7 +487,7 @@
             "  |  You pay: ₹" +
             total.toFixed(2),
         )
-        .show();
+        .hide();
     },
 
     updatePrice: function () {
@@ -510,6 +511,15 @@
             self._taxRate = parseFloat(res.tax_rate) || 0;
             self._taxLabel = res.tax_label;
             self.els.priceDisplay.text(self._basePrice.toFixed(2));
+            self.els.gstNote.text(
+              self._taxEnabled
+                ? " + " +
+                    (self._taxLabel || "GST") +
+                    " (" +
+                    self._taxRate +
+                    "%)"
+                : "",
+            );
             var seatsCount = parseInt(self.els.seats.val()) || 1;
             self.updateTaxLine(self._basePrice * seatsCount);
             self.updateSeatsInfo();
@@ -544,6 +554,15 @@
               self._taxEnabled = !!res.tax_enabled;
               self._taxRate = parseFloat(res.tax_rate) || 0;
               self._taxLabel = res.tax_label;
+              self.els.gstNote.text(
+                self._taxEnabled
+                  ? " + " +
+                      (self._taxLabel || "GST") +
+                      " (" +
+                      self._taxRate +
+                      "%)"
+                  : "",
+              );
               self.updateSuitePrice();
             }
           },

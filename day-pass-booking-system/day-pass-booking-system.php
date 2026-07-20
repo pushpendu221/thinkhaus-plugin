@@ -983,7 +983,7 @@ if ( isset( $_GET['location'] ) ) {
                 <h2 class="dpbs-form-heading">Book a Day Pass!</h2>
 
                 <div class="dpbs-price-line">
-                    Price: ₹<span id="<?php echo $iid; ?>-price-display">0.00</span> <span id="<?php echo $iid; ?>-price-suffix">/ Seat</span>
+                    Price: ₹<span id="<?php echo $iid; ?>-price-display">0.00</span> <span id="<?php echo $iid; ?>-price-suffix">/ Seat</span><span class="dpbs-gst-note" id="<?php echo $iid; ?>-gst-note"></span>
                  <div class="dpbs-tax-line" id="<?php echo $iid; ?>-tax-line" style="display:none;"></div>
                 </div>
                 <!-- NEW: populated by frontend.js with the tax breakdown for
