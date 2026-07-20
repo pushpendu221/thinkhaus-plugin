@@ -66,6 +66,7 @@
       calNav: container
         .find(".dpbs-cal-nav-btn")
         .not(".dpbs-suite-start-nav, .dpbs-suite-end-nav"),
+      priceLine: container.find(".dpbs-price-line"),
       priceDisplay: container.find('[id$="-price-display"]'),
       priceSuffix: container.find('[id$="-price-suffix"]'),
       taxLine: container.find('[id$="-tax-line"]'),
@@ -495,6 +496,7 @@
       if (!sid || !lid) {
         this.els.priceDisplay.text("0.00");
         this.updateTaxLine(0);
+        this.els.priceLine.removeClass("is-visible");
         return;
       }
       $.post(
@@ -511,6 +513,7 @@
             var seatsCount = parseInt(self.els.seats.val()) || 1;
             self.updateTaxLine(self._basePrice * seatsCount);
             self.updateSeatsInfo();
+            self.els.priceLine.addClass("is-visible");
           }
         },
       );
@@ -528,6 +531,7 @@
           this.els.priceDisplay.text("0.00");
           if (this.els.priceSuffix.length) this.els.priceSuffix.text("/ Stay");
           this.updateTaxLine(0);
+          this.els.priceLine.removeClass("is-visible");
           return;
         }
         $.post(
@@ -546,6 +550,8 @@
         );
         return;
       }
+
+      this.els.priceLine.addClass("is-visible");
 
       if (startDateStr && endDateStr && endDateStr >= startDateStr) {
         var start = new Date(startDateStr + "T00:00:00");

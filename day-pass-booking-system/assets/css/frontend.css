@@ -48,6 +48,11 @@
   font-weight: 500;
   line-height: 23px;
   color: #281d18;
+  display: none;
+}
+
+.dpbs-price-line.is-visible {
+  display: block;
 }
 
 /* ---- Field grid (2 columns) ---- */
