@@ -589,9 +589,9 @@ function sds_render_shortcode( array $atts ): string {
                         <?php if ( ! empty( $img_url ) ) : ?>
                             <img src="<?php echo esc_url( $img_url ); ?>" alt="<?php echo esc_attr( $img_alt ); ?>" />
                         <?php endif; ?>
-                        <?php if ( ! empty( $item_text ) ) : ?>
+                        <!-- <?php if ( ! empty( $item_text ) ) : ?>
                             <p><?php echo esc_html( $item_text ); ?></p>
-                        <?php endif; ?>
+                        <?php endif; ?> -->
                     </div>
                 <?php endforeach; ?>
             </div>
