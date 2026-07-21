@@ -103,6 +103,38 @@ function hbs_get_price_breakdown( $service_id, $location_id, $hours, $rooms ) {
     );
 }
 
+/**
+ * Google Maps directions link for a location. Uses a manually-set link
+ * (saved via the meta box on the Location post) when present, otherwise
+ * falls back to a maps search URL built from the location's title so the
+ * email never ships with a missing/broken link.
+ */
+function hbs_get_location_maps_link( $location_id ) {
+    $link = get_post_meta( $location_id, '_hbs_maps_link', true );
+    if ( $link ) return esc_url_raw( $link );
+    return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( get_the_title( $location_id ) );
+}
+
+/**
+ * Sends a mail via wp_mail with the plugin's own From name/email applied,
+ * without permanently touching wp_mail_from(_name) for the rest of the
+ * request — the filters are added just for this one send and removed
+ * right after, so nothing else on the site is affected.
+ */
+function hbs_send_mail( $to, $subject, $message, $headers = array() ) {
+    $from_name  = get_option( 'hbs_mail_from_name', 'ThinkHaus' );
+    $from_email = get_option( 'hbs_mail_from_email', 'no-reply@thinkhaus.co.in' );
+    $set_from_name  = function() use ( $from_name ) { return $from_name; };
+    $set_from_email = function() use ( $from_email ) { return $from_email; };
+    add_filter( 'wp_mail_from_name', $set_from_name );
+    add_filter( 'wp_mail_from', $set_from_email );
+    if ( empty( $headers ) ) $headers = array( 'Content-Type: text/html; charset=UTF-8' );
+    $result = wp_mail( $to, $subject, $message, $headers );
+    remove_filter( 'wp_mail_from_name', $set_from_name );
+    remove_filter( 'wp_mail_from', $set_from_email );
+    return $result;
+}
+
 /* ==========================================================================
    2. DATABASE CREATION
    ========================================================================== */
@@ -186,6 +218,8 @@ function hbs_settings_page() {
                         <div class="hbs-card-title">General</div>
                         <?php settings_fields( 'hbs_settings_group' ); ?>
                         <div class="hbs-form-row"><label>Admin Email</label><div class="hbs-form-row-control"><input type="email" name="hbs_admin_email" class="regular-text" value="<?php echo esc_attr( get_option('hbs_admin_email', get_option('admin_email')) ); ?>" required /></div></div>
+                        <div class="hbs-form-row"><label>Mail From Name</label><div class="hbs-form-row-control"><input type="text" name="hbs_mail_from_name" class="regular-text" value="<?php echo esc_attr( get_option('hbs_mail_from_name', 'ThinkHaus') ); ?>" required /><p class="description">Shown as the sender name on booking emails, e.g. "ThinkHaus".</p></div></div>
+                        <div class="hbs-form-row"><label>Mail From Email</label><div class="hbs-form-row-control"><input type="email" name="hbs_mail_from_email" class="regular-text" value="<?php echo esc_attr( get_option('hbs_mail_from_email', 'no-reply@thinkhaus.co.in') ); ?>" required /><p class="description">Sender address on booking emails, e.g. no-reply@thinkhaus.co.in.</p></div></div>
                         <div class="hbs-form-row"><label>Razorpay Key ID</label><div class="hbs-form-row-control"><input type="text" name="hbs_razorpay_key" class="regular-text" value="<?php echo esc_attr( get_option('hbs_razorpay_key') ); ?>" required /></div></div>
                         <div class="hbs-form-row"><label>Razorpay Secret</label><div class="hbs-form-row-control"><input type="text" name="hbs_razorpay_secret" class="regular-text" value="<?php echo esc_attr( get_option('hbs_razorpay_secret') ); ?>" required /></div></div>
                         <div class="hbs-form-row"><label>Global Default Price (₹)</label><div class="hbs-form-row-control"><input type="number" name="hbs_default_price" step="0.01" class="regular-text" value="<?php echo esc_attr( get_option('hbs_default_price', '500.00') ); ?>" required /></div></div>
@@ -299,11 +333,34 @@ add_action( 'admin_init', 'hbs_register_settings' );
 function hbs_register_settings() {
     register_setting( 'hbs_settings_group', 'hbs_razorpay_key' ); register_setting( 'hbs_settings_group', 'hbs_razorpay_secret' );
     register_setting( 'hbs_settings_group', 'hbs_admin_email' ); register_setting( 'hbs_settings_group', 'hbs_default_price' );
+    register_setting( 'hbs_settings_group', 'hbs_mail_from_name' ); register_setting( 'hbs_settings_group', 'hbs_mail_from_email', array( 'sanitize_callback' => 'sanitize_email' ) );
     register_setting( 'hbs_settings_group', 'hbs_max_rooms' ); register_setting( 'hbs_settings_group', 'hbs_limited_seats' );
     register_setting( 'hbs_settings_group', 'hbs_max_hours' );
     register_setting( 'hbs_settings_group', 'hbs_tax_enabled', array( 'sanitize_callback' => function( $v ) { return $v === '1' ? '1' : '0'; } ) );
     register_setting( 'hbs_settings_group', 'hbs_tax_label' );
     register_setting( 'hbs_settings_group', 'hbs_tax_percentage', array( 'sanitize_callback' => function( $v ) { $v = floatval( $v ); if ( $v < 0 ) $v = 0; if ( $v > 100 ) $v = 100; return $v; } ) );
+}
+
+/**
+ * Per-location Google Maps directions link, used in the booking
+ * confirmation email. Lives as a meta box on the "location" CPT edit
+ * screen so it can be set once per location rather than per booking.
+ */
+add_action( 'add_meta_boxes', 'hbs_add_location_maps_meta_box' );
+function hbs_add_location_maps_meta_box() {
+    add_meta_box( 'hbs_location_maps', 'ThinkHaus: Google Maps Directions Link', 'hbs_render_location_maps_meta_box', 'location', 'side' );
+}
+function hbs_render_location_maps_meta_box( $post ) {
+    wp_nonce_field( 'hbs_save_location_maps', 'hbs_location_maps_nonce' );
+    $link = get_post_meta( $post->ID, '_hbs_maps_link', true );
+    echo '<input type="url" name="hbs_maps_link" class="widefat" value="' . esc_attr( $link ) . '" placeholder="https://maps.app.goo.gl/..." />';
+    echo '<p class="description">Used as the "Directions" link in booking confirmation emails. Leave blank to auto-generate a search link from the location name.</p>';
+}
+add_action( 'save_post_location', 'hbs_save_location_maps_meta_box' );
+function hbs_save_location_maps_meta_box( $post_id ) {
+    if ( ! isset( $_POST['hbs_location_maps_nonce'] ) || ! wp_verify_nonce( $_POST['hbs_location_maps_nonce'], 'hbs_save_location_maps' ) ) return;
+    if ( ! current_user_can( 'edit_post', $post_id ) ) return;
+    if ( isset( $_POST['hbs_maps_link'] ) ) update_post_meta( $post_id, '_hbs_maps_link', esc_url_raw( $_POST['hbs_maps_link'] ) );
 }
 
 /**
@@ -970,8 +1027,35 @@ function hbs_verify_payment() {
                     error_log( '[ThinkHaus] Booking insert failed: ' . $wpdb->last_error );
                 } else {
                     $tax_line = $tax_amount > 0 ? "\n{$breakdown['tax_label']} ({$tax_percentage}%): ₹{$tax_amount}" : '';
-                    wp_mail( get_option('hbs_admin_email', get_option('admin_email')), 'New ThinkHaus Booking', "Name: " . sanitize_text_field($_POST['full_name']) . "\nEmail: " . sanitize_email($_POST['email']) . "\nPhone: " . sanitize_text_field($_POST['phone']) . "\nService: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\nDate: {$date}\nHours: {$hours}\nRooms: {$rooms}\nSubtotal: ₹{$subtotal}{$tax_line}\nTotal: ₹{$total_amount}\nPayment ID: {$payment_id}" );
-                    wp_mail( sanitize_email($_POST['email']), 'Your ThinkHaus Booking Confirmed!', "Thank you!\nService: " . get_the_title($service_id) . "\nLocation: " . get_the_title($location_id) . "\nDate: {$date}\nHours: {$hours}\nRooms: {$rooms}\nSubtotal: ₹{$subtotal}{$tax_line}\nTotal Paid: ₹{$total_amount}\nPayment ID: {$payment_id}" );
+                    $guest_name   = sanitize_text_field( $_POST['full_name'] );
+                    $guest_email  = sanitize_email( $_POST['email'] );
+                    $service_name = get_the_title( $service_id );
+                    $location_name = get_the_title( $location_id );
+                    $max_hours    = intval( get_option( 'hbs_max_hours', '8' ) );
+                    $duration     = ( $hours >= $max_hours ) ? 'Full Day' : ( $hours . ' Hour' . ( $hours > 1 ? 's' : '' ) );
+                    $maps_link    = hbs_get_location_maps_link( $location_id );
+
+                    // Admin notification — unchanged content, now sent through the
+                    // shared mailer so it carries the configured From name/email.
+                    hbs_send_mail(
+                        get_option( 'hbs_admin_email', get_option( 'admin_email' ) ),
+                        'New ThinkHaus Booking',
+                        "Name: {$guest_name}\nEmail: {$guest_email}\nPhone: " . sanitize_text_field($_POST['phone']) . "\nService: {$service_name}\nLocation: {$location_name}\nDate: {$date}\nHours: {$hours}\nRooms: {$rooms}\nSubtotal: ₹{$subtotal}{$tax_line}\nTotal: ₹{$total_amount}\nPayment ID: {$payment_id}",
+                        array( 'Content-Type: text/plain; charset=UTF-8' )
+                    );
+
+                    // Customer confirmation — new format with duration, seats/rooms,
+                    // location and a directions link.
+                    $customer_message = "Hi {$guest_name},<br><br>"
+                        . "Your booking at ThinkHaus is confirmed!<br><br>"
+                        . "Date of Booking: {$date}<br>"
+                        . "Service Booked: {$service_name}<br>"
+                        . "Duration: {$duration}<br>"
+                        . "Number of Seats/Rooms: {$rooms}<br>"
+                        . "Location: {$location_name}<br>"
+                        . "Directions: <a href=\"{$maps_link}\">{$maps_link}</a><br><br>"
+                        . "We look forward to welcoming you to ThinkHaus — Built for what's next.";
+                    hbs_send_mail( $guest_email, 'Your ThinkHaus Booking Confirmed!', $customer_message );
                     $result = 'verified';
                 }
             }
