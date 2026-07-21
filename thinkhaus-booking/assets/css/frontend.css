@@ -108,7 +108,11 @@
   background-color: #fff;
   box-shadow: 0 0 0 2px rgba(232, 82, 30, 0.1);
 }
-
+.hbs-display-type {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 /* ============================================================
    DATE FIELD TRIGGER
    ============================================================ */

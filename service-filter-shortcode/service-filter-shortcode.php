@@ -409,7 +409,7 @@ function sfs_render_shortcode( array $atts ): string {
 
 			<!-- ── NO RESULTS STATE ──────────────────────────────────────── -->
 			<div class="sfs-no-results" id="<?php echo esc_attr( $uid ); ?>-empty" style="display:none;">
-				No spaces available at this location.
+				<Strong>Coming soon!</Strong> Currently no spaces available at this location.
 			</div>
 
 			<!-- ── PROCEED ───────────────────────────────────────────────── -->

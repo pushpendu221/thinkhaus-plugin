@@ -171,10 +171,19 @@
 
 /* ── No-results state ────────────────────────────────────────────────────── */
 .sfs-no-results {
-  padding: 32px 0;
+  /* padding: 32px 0;
   font-size: 1rem;
-  color: #888;
-  text-align: center;
+  color: #000;
+  font-weight: 800;
+  text-align: center; */
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #000;
+  text-align: left;
+  margin-bottom: 20px;
 }
 
 /* ── Disabled select visual cue (City / Location / Spaces) ──────────────── */
@@ -183,16 +192,16 @@
   cursor: not-allowed;
 }
 
-@media (max-width: 540px){
-  .sfs-proceed-text{
+@media (max-width: 540px) {
+  .sfs-proceed-text {
     padding: 12px 20px;
   }
-  .sfs-proceed-icon{
+  .sfs-proceed-icon {
     height: 46px;
     width: 46px;
     padding: 15px;
   }
-  .sfs-proceed-btn{
+  .sfs-proceed-btn {
     width: auto;
   }
 }

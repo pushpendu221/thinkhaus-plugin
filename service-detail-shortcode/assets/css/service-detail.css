@@ -63,7 +63,7 @@
   border: none;
   font-size: 30px;
   line-height: 1;
-  color: #281D18;
+  color: #281d18;
   cursor: pointer;
   transition:
     color 0.2s ease,
@@ -95,7 +95,6 @@
   }
 }
 
-
 .bar {
   position: fixed;
   left: 0;
@@ -107,7 +106,9 @@
   justify-content: center;
   gap: 15px;
   z-index: 999;
-  transition: opacity .3s ease, visibility .3s ease;
+  transition:
+    opacity 0.3s ease,
+    visibility 0.3s ease;
 }
 
 .bar.is-hidden {

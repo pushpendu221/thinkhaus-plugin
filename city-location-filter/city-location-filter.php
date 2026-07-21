@@ -247,10 +247,7 @@ function cfs_render_shortcode( array $atts ): string {
             </div>
         <?php endif; ?>
 
-        <div class="cfs-no-results" id="<?php echo esc_attr( $uid ); ?>-empty"
-            style="<?php echo ( $service['id'] && ! $has_data && ! $slug_no_post ) ? '' : 'display:none;'; ?>">
-            No locations available for "<strong><?php echo esc_html( $service['title'] ); ?></strong>".
-        </div>
+       
 
         <div class="cfs-loading" id="<?php echo esc_attr( $uid ); ?>-loading" style="display:none;">
             <span class="cfs-spinner"></span> Loading…
@@ -308,7 +305,10 @@ function cfs_render_shortcode( array $atts ): string {
             </div>
 
         </div><!-- .cfs-filters-row -->
-
+    <div class="cfs-no-results" id="<?php echo esc_attr( $uid ); ?>-empty"
+                style="<?php echo ( $service['id'] && ! $has_data && ! $slug_no_post ) ? '' : 'display:none;'; ?>">
+                <strong>Coming soon!</strong> Currently no location available for this service.
+            </div>
         <div class="cfs-proceed-row">
             <button type="button" class="cfs-proceed-btn" id="<?php echo esc_attr( $uid ); ?>-proceed" disabled>
                 <span class="cfs-proceed-text">Proceed</span>

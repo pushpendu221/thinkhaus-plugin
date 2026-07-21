@@ -560,18 +560,25 @@ jQuery(document).ready(function ($) {
 
     var html = "";
     if (lastPriceInfo.taxEnabled && taxAmount > 0) {
+      // html +=
+      //   '<div class="hbs-price-row hbs-price-row-total" style="font-weight:600;">' +
+      //   "+ " +
+      //   lastPriceInfo.taxLabel +
+      //   " (" +
+      //   lastPriceInfo.taxPercentage +
+      //   "%): ₹" +
+      //   taxAmount.toFixed(2) +
+      //   "  |  You pay: ₹" +
+      //   total.toFixed(2) +
+      //   "</div>";
       html +=
-        '<div class="hbs-price-row hbs-price-row-total" style="font-weight:600;">' +
-        "+ " +
+        '<div class="hbs-price-row hbs-price-row-total" style="font-weight:600; margin-left: 2px;">' +
+        " + " +
         lastPriceInfo.taxLabel +
         " (" +
         lastPriceInfo.taxPercentage +
-        "%): ₹" +
-        taxAmount.toFixed(2) +
-        "  |  You pay: ₹" +
-        total.toFixed(2) +
+        "% )" +
         "</div>";
-      // html += '<div class="hbs-price-row">' "</div>";
     }
 
     $breakdown.html(html).show();
