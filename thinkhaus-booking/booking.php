@@ -135,6 +135,55 @@ function hbs_send_mail( $to, $subject, $message, $headers = array() ) {
     return $result;
 }
 
+/* NEW: WhatsApp notifications via AiSensy -----------------------------------
+   Sends the booking confirmation as a WhatsApp message alongside the email,
+   using AiSensy's Campaign API. Requires an AiSensy account with an approved
+   message template ("campaign") - see the WhatsApp Notifications card on
+   the Settings page. Entirely additive and fails silently (logged, not
+   shown to the customer) if not configured or if the API call fails, so it
+   can never block a booking or affect the existing email flow.
+
+   $template_params must be an ordered array of strings matching the {{1}},
+   {{2}}... placeholders in the approved AiSensy template, in order. */
+function hbs_send_whatsapp_message( $phone, $template_params, $guest_name = '' ) {
+    if ( get_option( 'hbs_whatsapp_enabled', 'no' ) !== 'yes' ) return false;
+
+    $api_key       = get_option( 'hbs_aisensy_api_key' );
+    $campaign_name = get_option( 'hbs_aisensy_campaign_name' );
+    if ( empty( $api_key ) || empty( $campaign_name ) ) return false;
+
+    // Normalize to E.164-ish digits-only with country code (defaults to 91/India
+    // if a 10-digit local number was entered without one).
+    $digits = preg_replace( '/\D/', '', $phone );
+    if ( strlen( $digits ) === 10 ) $digits = '91' . $digits;
+    if ( empty( $digits ) ) return false;
+
+    $body = array(
+        'apiKey'          => $api_key,
+        'campaignName'    => $campaign_name,
+        'destination'     => $digits,
+        'userName'        => $guest_name,
+        'templateParams'  => array_values( $template_params ),
+    );
+
+    $response = wp_remote_post( 'https://backend.aisensy.com/campaign/t1/api/v2', array(
+        'headers' => array( 'Content-Type' => 'application/json' ),
+        'body'    => wp_json_encode( $body ),
+        'timeout' => 15,
+    ) );
+
+    if ( is_wp_error( $response ) ) {
+        error_log( '[ThinkHaus] WhatsApp send failed - ' . $response->get_error_message() );
+        return false;
+    }
+    $code = wp_remote_retrieve_response_code( $response );
+    if ( $code < 200 || $code >= 300 ) {
+        error_log( '[ThinkHaus] WhatsApp send returned HTTP ' . $code . ' - ' . wp_remote_retrieve_body( $response ) );
+        return false;
+    }
+    return true;
+}
+
 /* ==========================================================================
    2. DATABASE CREATION
    ========================================================================== */
@@ -243,6 +292,35 @@ function hbs_settings_page() {
                         <div class="hbs-form-row"><label>Tax Percentage (%)</label><div class="hbs-form-row-control"><input type="number" name="hbs_tax_percentage" class="regular-text" step="0.01" min="0" max="100" value="<?php echo esc_attr( get_option('hbs_tax_percentage', '18') ); ?>" /><p class="description">Applied to the booking subtotal (price × hours × rooms) when tax collection is enabled above.</p></div></div>
                         <div class="hbs-card-footer"><?php submit_button('Save Settings', 'primary', 'submit', false); ?></div>
                     </div>
+                    <div class="hbs-card">
+                        <div class="hbs-card-title">WhatsApp Notifications (AiSensy)</div>
+                        <p class="description" style="margin-bottom: 20px;">Sends the same booking confirmation as a WhatsApp message, in addition to the email. Requires an AiSensy account with an approved template ("campaign"). See <a href="https://docs.aisensy.com/" target="_blank" rel="noopener">AiSensy's docs</a> for creating a WABA + template.</p>
+                        <div class="hbs-form-row">
+                            <label>Enable WhatsApp Messages</label>
+                            <div class="hbs-form-row-control">
+                                <input type="hidden" name="hbs_whatsapp_enabled" value="no" />
+                                <label style="font-weight:normal;">
+                                    <input type="checkbox" name="hbs_whatsapp_enabled" value="yes" <?php checked( get_option( 'hbs_whatsapp_enabled', 'no' ), 'yes' ); ?> />
+                                    Also send booking confirmations via WhatsApp
+                                </label>
+                            </div>
+                        </div>
+                        <div class="hbs-form-row">
+                            <label>AiSensy API Key</label>
+                            <div class="hbs-form-row-control">
+                                <input type="text" name="hbs_aisensy_api_key" class="regular-text" value="<?php echo esc_attr( get_option('hbs_aisensy_api_key') ); ?>" />
+                                <p class="description">From AiSensy dashboard → Manage → API Keys.</p>
+                            </div>
+                        </div>
+                        <div class="hbs-form-row">
+                            <label>Booking Campaign Name</label>
+                            <div class="hbs-form-row-control">
+                                <input type="text" name="hbs_aisensy_campaign_name" class="regular-text" value="<?php echo esc_attr( get_option('hbs_aisensy_campaign_name') ); ?>" placeholder="e.g. thinkhaus_booking_confirmed" />
+                                <p class="description">Name of the approved AiSensy template used for booking confirmations.</p>
+                            </div>
+                        </div>
+                        <div class="hbs-card-footer"><?php submit_button('Save Settings', 'primary', 'submit', false); ?></div>
+                    </div>
                 </form>
                 
                 <!-- NEW: Location Room Capacity Section -->
@@ -339,6 +417,9 @@ function hbs_register_settings() {
     register_setting( 'hbs_settings_group', 'hbs_tax_enabled', array( 'sanitize_callback' => function( $v ) { return $v === '1' ? '1' : '0'; } ) );
     register_setting( 'hbs_settings_group', 'hbs_tax_label' );
     register_setting( 'hbs_settings_group', 'hbs_tax_percentage', array( 'sanitize_callback' => function( $v ) { $v = floatval( $v ); if ( $v < 0 ) $v = 0; if ( $v > 100 ) $v = 100; return $v; } ) );
+    register_setting( 'hbs_settings_group', 'hbs_whatsapp_enabled', array( 'sanitize_callback' => function( $v ) { return $v === 'yes' ? 'yes' : 'no'; } ) );
+    register_setting( 'hbs_settings_group', 'hbs_aisensy_api_key' );
+    register_setting( 'hbs_settings_group', 'hbs_aisensy_campaign_name' );
 }
 
 /**
@@ -1056,6 +1137,23 @@ function hbs_verify_payment() {
                         . "Directions: <a href=\"{$maps_link}\">{$maps_link}</a><br><br>"
                         . "We look forward to welcoming you to ThinkHaus — Built for what's next.";
                     hbs_send_mail( $guest_email, 'Your ThinkHaus Booking Confirmed!', $customer_message );
+
+                    /* NEW: also send the same confirmation over WhatsApp (no-op if
+                       not configured in Settings - see hbs_send_whatsapp_message()). */
+                    hbs_send_whatsapp_message(
+                        sanitize_text_field( $_POST['phone'] ),
+                        array(
+                            $guest_name,
+                            $date,
+                            $service_name,
+                            $duration,
+                            $rooms,
+                            $location_name,
+                            $maps_link,
+                        ),
+                        $guest_name
+                    );
+
                     $result = 'verified';
                 }
             }

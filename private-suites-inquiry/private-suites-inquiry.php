@@ -144,6 +144,20 @@ function psi_settings_page() {
                             </div>
                         </div>
                         <div class="hbs-form-row">
+                            <label>Email From Name</label>
+                            <div class="hbs-form-row-control">
+                                <input type="text" name="psi_from_name" class="regular-text" value="<?php echo esc_attr( get_option('psi_from_name', 'ThinkHaus') ); ?>" />
+                                <p class="description">Sender name used on all outgoing inquiry emails (admin notification + guest confirmation).</p>
+                            </div>
+                        </div>
+                        <div class="hbs-form-row">
+                            <label>Email From Address</label>
+                            <div class="hbs-form-row-control">
+                                <input type="email" name="psi_from_email" class="regular-text" value="<?php echo esc_attr( get_option('psi_from_email', 'no-reply@thinkhaus.co.in') ); ?>" />
+                                <p class="description">Sender email used on all outgoing inquiry emails. Make sure this address/domain is authorized (SPF/DKIM) to send from your mail server or SMTP plugin, otherwise emails may land in spam.</p>
+                            </div>
+                        </div>
+                        <div class="hbs-form-row">
                             <label>Global Default Price</label>
                             <div class="hbs-form-row-control">
                                 <input type="number" name="psi_default_price" class="regular-text" step="0.01" value="<?php echo esc_attr( get_option('psi_default_price', '1000') ); ?>" required />
@@ -251,6 +265,8 @@ function psi_settings_page() {
 add_action( 'admin_init', 'psi_register_settings' );
 function psi_register_settings() {
     register_setting( 'psi_settings_group', 'psi_admin_name' );
+    register_setting( 'psi_settings_group', 'psi_from_name' );
+    register_setting( 'psi_settings_group', 'psi_from_email', array( 'sanitize_callback' => 'sanitize_email' ) );
     register_setting( 'psi_settings_group', 'psi_default_price' );
     register_setting( 'psi_settings_group', 'psi_default_seats' );
     register_setting( 'psi_settings_group', 'psi_min_days' );
@@ -862,8 +878,13 @@ function psi_submit_inquiry() {
     $admin_name   = get_option('psi_admin_name', get_option('blogname'));
     $success_msg  = get_option('psi_success_message', 'Thank you for your inquiry! We will get back to you within 24 hours.');
 
+    /* Sender identity for all outgoing mail — managed from Settings page */
+    $from_name  = get_option('psi_from_name', 'ThinkHaus');
+    $from_email = get_option('psi_from_email', 'no-reply@thinkhaus.co.in');
+
     $location_name = $location_id ? get_the_title($location_id) : 'N/A';
     $city_name     = $city_id ? get_the_title($city_id) : 'N/A';
+    $directions_url = 'https://maps.google.com/?q=' . rawurlencode( trim( $location_name . ' ' . $city_name ) );
 
     $subject = 'New Suite Inquiry — ' . $full_name . ' (' . $months . ' month' . ($months>1?'s':'') . ')';
 
@@ -896,11 +917,51 @@ function psi_submit_inquiry() {
     $body .= "<div style='padding:16px 32px 24px;text-align:center;font-size:12px;color:#aaa;'>Sent via Private Suites Inquiry Plugin</div></div>";
 
     $headers = array(
-        'From: '.$admin_name.' <'.$admin_email.'>',
+        'From: '.$from_name.' <'.$from_email.'>',
         'Content-Type: text/html; charset=UTF-8',
         'Reply-To: '.$full_name.' <'.$email.'>',
     );
     wp_mail( $admin_email, $subject, $body, $headers );
+
+    /* ---- Guest confirmation email ---- */
+    $guest_subject = 'Your ThinkHaus Private Suites Inquiry — Confirmation';
+
+    $guest_body  = "<div style='font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif;max-width:600px;margin:0 auto;background:#f9f8f5;border-radius:12px;overflow:hidden;'>";
+    $guest_body .= "<div style='background:#e8521e;padding:28px 32px;color:#fff;'><h1 style='margin:0;font-size:22px;font-weight:700;'>Thank You, ".esc_html($full_name)."!</h1></div>";
+    $guest_body .= "<div style='padding:28px 32px;font-size:14px;color:#1f1f1f;line-height:1.6;'>";
+    $guest_body .= "<p>Hi ".esc_html($full_name).",</p>";
+    $guest_body .= "<p>Thank you for your interest in ThinkHaus Private Suites! We've received your inquiry and our team will get back to you within 24 hours to confirm availability and finalize the details.</p>";
+    $guest_body .= "<p style='margin-top:20px;font-weight:600;'>Here's a summary of your inquiry:</p>";
+    $guest_body .= "<table style='width:100%;border-collapse:collapse;font-size:14px;margin-top:8px;'>";
+
+    $guest_rows = array(
+        array('Service', 'Private Suites'),
+        array('Company', esc_html($company) ?: '—'),
+        array('Start Date', esc_html($start_date)),
+        array('End Date', esc_html($end_date)),
+        array('Duration', $duration.' day'.($duration>1?'s':'').' ('.$months.' month'.($months>1?'s':'').')'),
+        array('Number of Seats', esc_html($seats)),
+        array('Manager Seats', esc_html($manager)),
+        array('Location', esc_html($location_name)),
+        array('Directions', '<a href="'.esc_url($directions_url).'" style="color:#e8521e;">'.esc_html($directions_url).'</a>'),
+        array('Estimated Total', '<strong style="color:#e8521e;">₹'.number_format($total_price, 2).'</strong> + GST'),
+    );
+    foreach ($guest_rows as $i => $row) {
+        $bg = $i % 2 === 0 ? '#fff' : '#f5f3ed';
+        $guest_body .= "<tr><td style='padding:10px 14px;background:{$bg};font-weight:600;color:#666;width:40%;border-bottom:1px solid #eae7df;'>{$row[0]}</td>";
+        $guest_body .= "<td style='padding:10px 14px;background:{$bg};color:#1f1f1f;border-bottom:1px solid #eae7df;'>{$row[1]}</td></tr>";
+    }
+    $guest_body .= "</table>";
+    $guest_body .= "<p style='margin-top:20px;'>Please note: this is an inquiry, not a confirmed booking. No payment has been collected, and your Private Suite will be confirmed once our team reaches out to you.</p>";
+    $guest_body .= "<p style='margin-top:20px;'>We look forward to welcoming you to ThinkHaus — Built for what's next.</p>";
+    $guest_body .= "</div></div>";
+
+    $guest_headers = array(
+        'From: '.$from_name.' <'.$from_email.'>',
+        'Content-Type: text/html; charset=UTF-8',
+        'Reply-To: '.$admin_name.' <'.$admin_email.'>',
+    );
+    wp_mail( $email, $guest_subject, $guest_body, $guest_headers );
 
     echo json_encode( array('success'=>true,'message'=>$success_msg) );
     wp_die();
